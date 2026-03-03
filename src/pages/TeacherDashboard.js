@@ -29,6 +29,17 @@ const TeacherDashboard = () => {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackCategory, setFeedbackCategory] = useState('rag');
   const [myFeedback, setMyFeedback] = useState([]);
+  
+  // Analytics
+  const [analytics, setAnalytics] = useState(null);
+  
+  // PDFs
+  const [pdfs, setPdfs] = useState([]);
+  const [uploadingPDF, setUploadingPDF] = useState(false);
+  const [indexingPDF, setIndexingPDF] = useState(null);
+  
+  // Search history
+  const [searchHistory, setSearchHistory] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -57,6 +68,22 @@ const TeacherDashboard = () => {
       // Load my feedback
       const feedback = await feedbackAPI.getMine();
       setMyFeedback(feedback);
+      
+      // Load analytics
+      try {
+        const insights = await analyticsAPI.getStudentInsights();
+        setAnalytics(insights);
+      } catch (e) {
+        console.log('Analytics not available for teachers');
+      }
+      
+      // Load PDFs
+      const pdfList = await ragAPI.getPDFs();
+      setPdfs(pdfList);
+      
+      // Load search history
+      const history = await ragAPI.getSearchHistory();
+      setSearchHistory(history);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -99,6 +126,48 @@ const TeacherDashboard = () => {
     navigate('/');
   };
 
+  const handleUploadPDF = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingPDF(true);
+    try {
+      await ragAPI.uploadPDF(file);
+      alert(`PDF "${file.name}" uploaded! Click Index to make it searchable.`);
+      const pdfList = await ragAPI.getPDFs();
+      setPdfs(pdfList);
+    } catch (error) {
+      alert('Upload failed: ' + error.message);
+    } finally {
+      setUploadingPDF(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleIndexPDF = async (pdfId) => {
+    setIndexingPDF(pdfId);
+    try {
+      const result = await ragAPI.indexPDF(pdfId);
+      alert(result.message);
+      const pdfList = await ragAPI.getPDFs();
+      setPdfs(pdfList);
+    } catch (error) {
+      alert('Indexing failed: ' + error.message);
+    } finally {
+      setIndexingPDF(null);
+    }
+  };
+
+  const handleDeletePDF = async (pdfId, filename) => {
+    if (!window.confirm(`Delete "${filename}" and all its indexed data?`)) return;
+    try {
+      await ragAPI.deletePDF(pdfId);
+      setPdfs(pdfs.filter(p => p.id !== pdfId));
+      alert('PDF deleted successfully!');
+    } catch (error) {
+      alert('Delete failed: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="teacher-dashboard loading-screen">
@@ -130,6 +199,14 @@ const TeacherDashboard = () => {
           >
             <span className="nav-icon">🔍</span>
             <span>RAG Search</span>
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === 'pdf-manage' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pdf-manage')}
+          >
+            <span className="nav-icon">📄</span>
+            <span>PDF Upload</span>
           </button>
 
           <button
@@ -311,22 +388,95 @@ const TeacherDashboard = () => {
 
                 <h3>🕐 Recent Searches</h3>
                 <div className="recent-searches">
-                  <div className="recent-search-item">
-                    <span>🔍</span>
-                    <p>"calculus integration methods"</p>
-                    <span className="search-time">2 hours ago</span>
-                  </div>
-                  <div className="recent-search-item">
-                    <span>🔍</span>
-                    <p>"probability theory examples"</p>
-                    <span className="search-time">Yesterday</span>
-                  </div>
-                  <div className="recent-search-item">
-                    <span>🔍</span>
-                    <p>"student notes linear algebra"</p>
-                    <span className="search-time">2 days ago</span>
-                  </div>
+                  {searchHistory.length > 0 ? searchHistory.map((item, idx) => (
+                    <div key={idx} className="recent-search-item">
+                      <span>🔍</span>
+                      <p>"{item.query}"</p>
+                      <span className="search-time">{new Date(item.created_at).toLocaleDateString()}</span>
+                    </div>
+                  )) : (
+                    <p className="no-data">Your search history will appear here once you start searching</p>
+                  )}
                 </div>
+              </div>
+            </section>
+          )}
+
+          {/* PDF Upload & Management Tab */}
+          {activeTab === 'pdf-manage' && (
+            <section className="tab-content">
+              <h2>📄 PDF Upload & Management</h2>
+              <p className="section-desc">Upload course materials and PDFs for RAG indexing</p>
+              
+              <div className="pdf-upload-section">
+                <div className="upload-area">
+                  <span className="upload-icon">📤</span>
+                  <h3>Upload New PDF</h3>
+                  <p>Upload course notes, question papers, or study materials</p>
+                  <label className="upload-btn-label">
+                    <input 
+                      type="file" 
+                      accept=".pdf" 
+                      onChange={handleUploadPDF} 
+                      disabled={uploadingPDF}
+                      style={{display: 'none'}}
+                    />
+                    {uploadingPDF ? '⏳ Uploading...' : '📁 Choose PDF File'}
+                  </label>
+                </div>
+              </div>
+
+              <div className="pdf-stats-bar">
+                <span className="stat-pill">📄 {pdfs.length} Total PDFs</span>
+                <span className="stat-pill indexed">✅ {pdfs.filter(p => p.status === 'indexed').length} Indexed</span>
+                <span className="stat-pill pending">⏳ {pdfs.filter(p => p.status === 'pending_indexing').length} Pending</span>
+              </div>
+
+              <div className="pdf-list">
+                <div className="table-header">
+                  <span>Filename</span>
+                  <span>Status</span>
+                  <span>Pages</span>
+                  <span>Chunks</span>
+                  <span>Uploaded</span>
+                  <span>Actions</span>
+                </div>
+                {pdfs.length > 0 ? pdfs.map((pdf) => (
+                  <div key={pdf.id} className="table-row pdf-row">
+                    <div className="pdf-name-cell">
+                      <span className="pdf-icon">📄</span>
+                      <span>{pdf.filename}</span>
+                    </div>
+                    <span className={`status-badge ${pdf.status}`}>
+                      {pdf.status === 'indexed' ? '✅ Indexed' : pdf.status === 'pending_indexing' ? '⏳ Pending' : '❌ Failed'}
+                    </span>
+                    <span>{pdf.total_pages || '--'}</span>
+                    <span>{pdf.total_chunks || '--'}</span>
+                    <span className="date-cell">{pdf.created_at ? new Date(pdf.created_at).toLocaleDateString() : '--'}</span>
+                    <div className="actions-cell">
+                      {pdf.status !== 'indexed' && (
+                        <button 
+                          className="index-btn"
+                          onClick={() => handleIndexPDF(pdf.id)}
+                          disabled={indexingPDF === pdf.id}
+                        >
+                          {indexingPDF === pdf.id ? '⏳ Indexing...' : '🔄 Index'}
+                        </button>
+                      )}
+                      <button 
+                        className="delete-btn"
+                        onClick={() => handleDeletePDF(pdf.id, pdf.filename)}
+                        title="Delete PDF"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="no-data-row">
+                    <p className="no-data">No PDFs uploaded yet. Upload your first PDF to get started!</p>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -366,31 +516,31 @@ const TeacherDashboard = () => {
               
               <div className="analysis-stats">
                 <div className="stat-card">
+                  <span className="stat-icon">�</span>
+                  <div className="stat-info">
+                    <p className="stat-number">{analytics?.total_students || '--'}</p>
+                    <p className="stat-label">Total Students</p>
+                  </div>
+                </div>
+                <div className="stat-card">
                   <span className="stat-icon">📈</span>
                   <div className="stat-info">
-                    <p className="stat-number">147</p>
-                    <p className="stat-label">Total Queries Today</p>
+                    <p className="stat-number">{analytics?.avg_queries_per_student || '--'}</p>
+                    <p className="stat-label">Avg Queries/Student</p>
                   </div>
                 </div>
                 <div className="stat-card">
-                  <span className="stat-icon">🎯</span>
+                  <span className="stat-icon">🔥</span>
                   <div className="stat-info">
-                    <p className="stat-number">89%</p>
-                    <p className="stat-label">RAG Accuracy</p>
-                  </div>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-icon">👥</span>
-                  <div className="stat-info">
-                    <p className="stat-number">45</p>
-                    <p className="stat-label">Active Students</p>
+                    <p className="stat-number">{studentProblems.length}</p>
+                    <p className="stat-label">Trending Topics</p>
                   </div>
                 </div>
                 <div className="stat-card">
                   <span className="stat-icon">📚</span>
                   <div className="stat-info">
-                    <p className="stat-number">23</p>
-                    <p className="stat-label">PDFs Indexed</p>
+                    <p className="stat-number">{teachers.length + 1}</p>
+                    <p className="stat-label">Teachers</p>
                   </div>
                 </div>
               </div>
@@ -413,18 +563,27 @@ const TeacherDashboard = () => {
 
               <h3>💡 RAG Analysis Insights</h3>
               <div className="insights-grid">
-                <div className="insight-card">
-                  <h4>📌 Focus Area Needed</h4>
-                  <p>Students are frequently searching Calculus Integration. Consider adding more PDFs on this topic.</p>
-                </div>
-                <div className="insight-card">
-                  <h4>✅ Well Understood</h4>
-                  <p>Statistics Basics has lower search rate, indicating good comprehension from existing materials.</p>
-                </div>
-                <div className="insight-card">
-                  <h4>📈 Trending Topic</h4>
-                  <p>Probability Theory searches increased 40% this week. Students preparing for exams?</p>
-                </div>
+                {studentProblems.length > 0 ? (
+                  <>
+                    <div className="insight-card">
+                      <h4>📌 Most Searched</h4>
+                      <p>{studentProblems[0]?.topic || 'No data'} has the highest search frequency.</p>
+                    </div>
+                    <div className="insight-card">
+                      <h4>👥 Active Students</h4>
+                      <p>{analytics?.total_students || 0} students are using the RAG system.</p>
+                    </div>
+                    <div className="insight-card">
+                      <h4>📈 Topics Trending</h4>
+                      <p>{studentProblems.length} topics are being searched by students.</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="insight-card">
+                    <h4>📊 No Data Yet</h4>
+                    <p>Insights will appear here once students start searching.</p>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -448,7 +607,7 @@ const TeacherDashboard = () => {
                   />
                   <div>
                     <p className="sender-name">{userName}</p>
-                    <p className="sender-id">Teacher ID: TCH001</p>
+                    <p className="sender-id">Teacher ID: {currentUser?.institution_id || '--'}</p>
                   </div>
                 </div>
 
@@ -481,22 +640,22 @@ const TeacherDashboard = () => {
 
               <div className="feedback-history">
                 <h3>Previous Feedback</h3>
-                <div className="feedback-item">
-                  <div className="feedback-header">
-                    <span className="feedback-category">RAG Improvement</span>
-                    <span className="feedback-date">Feb 28, 2026</span>
-                  </div>
-                  <p>Suggested improving Hindi language support in RAG responses...</p>
-                  <span className="feedback-status responded">✓ Responded</span>
-                </div>
-                <div className="feedback-item">
-                  <div className="feedback-header">
-                    <span className="feedback-category">Feature Request</span>
-                    <span className="feedback-date">Feb 25, 2026</span>
-                  </div>
-                  <p>Request for bulk PDF upload feature...</p>
-                  <span className="feedback-status pending">⏳ Under Review</span>
-                </div>
+                {myFeedback.length > 0 ? (
+                  myFeedback.map((fb, index) => (
+                    <div key={index} className="feedback-item">
+                      <div className="feedback-header">
+                        <span className="feedback-category">{fb.category || 'General'}</span>
+                        <span className="feedback-date">{new Date(fb.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <p>{fb.message}</p>
+                      <span className={`feedback-status ${fb.status === 'responded' ? 'responded' : 'pending'}`}>
+                        {fb.status === 'responded' ? '✓ Responded' : '⏳ Under Review'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="no-data">No feedback sent yet. Your feedback history will appear here.</p>
+                )}
               </div>
             </section>
           )}

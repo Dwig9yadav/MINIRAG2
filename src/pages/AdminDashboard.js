@@ -28,6 +28,11 @@ const AdminDashboard = () => {
   
   // Analytics from API
   const [analytics, setAnalytics] = useState(null);
+  
+  // PDFs from API
+  const [pdfs, setPdfs] = useState([]);
+  const [uploadingPDF, setUploadingPDF] = useState(false);
+  const [indexingPDF, setIndexingPDF] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -56,6 +61,10 @@ const AdminDashboard = () => {
       // Load analytics
       const stats = await analyticsAPI.getSummary();
       setAnalytics(stats);
+      
+      // Load PDFs
+      const pdfList = await ragAPI.getPDFs();
+      setPdfs(pdfList);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -121,6 +130,48 @@ const AdminDashboard = () => {
     return user.role === userFilter;
   });
 
+  const handleUploadPDF = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingPDF(true);
+    try {
+      const result = await ragAPI.uploadPDF(file);
+      alert(`PDF "${file.name}" uploaded! Click Index to make it searchable.`);
+      const pdfList = await ragAPI.getPDFs();
+      setPdfs(pdfList);
+    } catch (error) {
+      alert('Upload failed: ' + error.message);
+    } finally {
+      setUploadingPDF(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleIndexPDF = async (pdfId) => {
+    setIndexingPDF(pdfId);
+    try {
+      const result = await ragAPI.indexPDF(pdfId);
+      alert(result.message);
+      const pdfList = await ragAPI.getPDFs();
+      setPdfs(pdfList);
+    } catch (error) {
+      alert('Indexing failed: ' + error.message);
+    } finally {
+      setIndexingPDF(null);
+    }
+  };
+
+  const handleDeletePDF = async (pdfId, filename) => {
+    if (!window.confirm(`Delete "${filename}" and all its indexed data?`)) return;
+    try {
+      await ragAPI.deletePDF(pdfId);
+      setPdfs(pdfs.filter(p => p.id !== pdfId));
+      alert('PDF deleted successfully!');
+    } catch (error) {
+      alert('Delete failed: ' + error.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="admin-dashboard loading-screen">
@@ -168,6 +219,14 @@ const AdminDashboard = () => {
           >
             <span className="nav-icon">🔍</span>
             <span>RAG Search</span>
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === 'pdf-manage' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pdf-manage')}
+          >
+            <span className="nav-icon">📄</span>
+            <span>PDF Management</span>
           </button>
 
           <button
@@ -491,24 +550,89 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <h3>🕐 Recent Admin Searches</h3>
+                <h3>🕐 Recent Searches</h3>
                 <div className="recent-searches">
-                  <div className="recent-search-item">
-                    <span>🔍</span>
-                    <p>"student performance analytics"</p>
-                    <span className="search-time">1 hour ago</span>
-                  </div>
-                  <div className="recent-search-item">
-                    <span>🔍</span>
-                    <p>"RAG accuracy reports"</p>
-                    <span className="search-time">Yesterday</span>
-                  </div>
-                  <div className="recent-search-item">
-                    <span>🔍</span>
-                    <p>"teacher feedback summary"</p>
-                    <span className="search-time">2 days ago</span>
-                  </div>
+                  <p className="no-data">Search history will appear here once you start searching</p>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {/* PDF Management Tab */}
+          {activeTab === 'pdf-manage' && (
+            <section className="tab-content">
+              <h2>📄 PDF Management</h2>
+              <p className="section-desc">Upload, index, and manage course PDFs for RAG search</p>
+              
+              <div className="pdf-upload-section">
+                <div className="upload-area">
+                  <span className="upload-icon">📤</span>
+                  <h3>Upload New PDF</h3>
+                  <p>Upload course materials, notes, or question papers</p>
+                  <label className="upload-btn-label">
+                    <input 
+                      type="file" 
+                      accept=".pdf" 
+                      onChange={handleUploadPDF} 
+                      disabled={uploadingPDF}
+                      style={{display: 'none'}}
+                    />
+                    {uploadingPDF ? '⏳ Uploading...' : '📁 Choose PDF File'}
+                  </label>
+                </div>
+              </div>
+
+              <div className="pdf-stats-bar">
+                <span className="stat-pill">📄 {pdfs.length} Total PDFs</span>
+                <span className="stat-pill indexed">✅ {pdfs.filter(p => p.status === 'indexed').length} Indexed</span>
+                <span className="stat-pill pending">⏳ {pdfs.filter(p => p.status === 'pending_indexing').length} Pending</span>
+              </div>
+
+              <div className="pdf-list">
+                <div className="table-header">
+                  <span>Filename</span>
+                  <span>Status</span>
+                  <span>Pages</span>
+                  <span>Chunks</span>
+                  <span>Uploaded</span>
+                  <span>Actions</span>
+                </div>
+                {pdfs.length > 0 ? pdfs.map((pdf) => (
+                  <div key={pdf.id} className="table-row pdf-row">
+                    <div className="pdf-name-cell">
+                      <span className="pdf-icon">📄</span>
+                      <span>{pdf.filename}</span>
+                    </div>
+                    <span className={`status-badge ${pdf.status}`}>
+                      {pdf.status === 'indexed' ? '✅ Indexed' : pdf.status === 'pending_indexing' ? '⏳ Pending' : '❌ Failed'}
+                    </span>
+                    <span>{pdf.total_pages || '--'}</span>
+                    <span>{pdf.total_chunks || '--'}</span>
+                    <span className="date-cell">{pdf.created_at ? new Date(pdf.created_at).toLocaleDateString() : '--'}</span>
+                    <div className="actions-cell">
+                      {pdf.status !== 'indexed' && (
+                        <button 
+                          className="index-btn"
+                          onClick={() => handleIndexPDF(pdf.id)}
+                          disabled={indexingPDF === pdf.id}
+                        >
+                          {indexingPDF === pdf.id ? '⏳ Indexing...' : '🔄 Index'}
+                        </button>
+                      )}
+                      <button 
+                        className="delete-btn"
+                        onClick={() => handleDeletePDF(pdf.id, pdf.filename)}
+                        title="Delete PDF"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="no-data-row">
+                    <p className="no-data">No PDFs uploaded yet. Upload your first PDF to enable RAG search!</p>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -580,19 +704,22 @@ const AdminDashboard = () => {
                 <div className="lang-card">
                   <span className="lang-emoji">🇬🇧</span>
                   <p className="lang-name">English</p>
-                  <p className="lang-percent">58%</p>
+                  <p className="lang-percent">--</p>
                 </div>
                 <div className="lang-card">
                   <span className="lang-emoji">🇮🇳</span>
                   <p className="lang-name">Hindi</p>
-                  <p className="lang-percent">27%</p>
+                  <p className="lang-percent">--</p>
                 </div>
                 <div className="lang-card">
                   <span className="lang-emoji">🔀</span>
                   <p className="lang-name">Hinglish</p>
-                  <p className="lang-percent">15%</p>
+                  <p className="lang-percent">--</p>
                 </div>
               </div>
+              <p className="section-desc" style={{marginTop: '1rem', fontSize: '0.9em'}}>
+                Language stats will appear once users start making searches
+              </p>
             </section>
           )}
         </div>

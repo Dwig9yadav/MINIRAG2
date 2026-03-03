@@ -11,7 +11,7 @@ import time
 
 from models import RAGQuery
 from database import get_db
-from sqlite_models import PDF, PDFChunk, SearchHistory
+from sqlite_models import PDF, PDFChunk, SearchHistory, User
 from routers.auth import get_current_user
 
 router = APIRouter()
@@ -46,28 +46,14 @@ async def search_documents(
                     "page_number": chunk.page_number or 1
                 })
         else:
-            # Return demo results if no chunks found
+            # Return helpful message when no PDFs are indexed
             results = [
                 {
-                    "id": 1,
-                    "content": f"This is a sample result for '{query.query}'. The integration by parts formula is: ∫u dv = uv - ∫v du",
-                    "source": "Calculus_Chapter5.pdf",
-                    "relevance_score": 0.95,
-                    "page_number": 42
-                },
-                {
-                    "id": 2,
-                    "content": f"Another relevant result for '{query.query}'. The fundamental theorem establishes the relationship between differentiation and integration.",
-                    "source": "Mathematics_Basics.pdf",
-                    "relevance_score": 0.88,
-                    "page_number": 15
-                },
-                {
-                    "id": 3,
-                    "content": f"Additional context for '{query.query}'. Definite integrals represent the signed area under a curve.",
-                    "source": "Advanced_Math.pdf",
-                    "relevance_score": 0.82,
-                    "page_number": 38
+                    "id": 0,
+                    "content": f"No indexed PDFs found. Ask your teacher to upload course materials to enable RAG search.",
+                    "source": "System",
+                    "relevance_score": 1.0,
+                    "page_number": 0
                 }
             ]
         
@@ -203,11 +189,161 @@ async def get_trending_topics(
             for t in trending
         ]
     
-    # Return demo trending if no data
-    return [
-        {"topic": "Integration", "count": 45, "difficulty": "High"},
-        {"topic": "Derivatives", "count": 38, "difficulty": "Medium"},
-        {"topic": "Probability", "count": 32, "difficulty": "Medium"},
-        {"topic": "Linear Algebra", "count": 28, "difficulty": "Medium"},
-        {"topic": "Statistics", "count": 22, "difficulty": "Medium"}
-    ]
+    return []
+
+
+@router.delete("/pdfs/{pdf_id}")
+async def delete_pdf(
+    pdf_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a PDF and its chunks (Teacher/Admin only)"""
+    if current_user.get("role") not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can delete PDFs")
+    
+    pdf = db.query(PDF).filter(PDF.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    
+    # Delete file from disk
+    if os.path.exists(pdf.storage_path):
+        os.remove(pdf.storage_path)
+    
+    db.delete(pdf)
+    db.commit()
+    
+    return {"message": "PDF deleted successfully"}
+
+
+@router.post("/pdfs/{pdf_id}/index")
+async def index_pdf(
+    pdf_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Index a PDF - extract text and create searchable chunks (Teacher/Admin only)"""
+    if current_user.get("role") not in ["teacher", "admin"]:
+        raise HTTPException(status_code=403, detail="Only teachers and admins can index PDFs")
+    
+    pdf = db.query(PDF).filter(PDF.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    
+    try:
+        # Try to extract text using PyPDF2 or pdfplumber
+        text_content = ""
+        total_pages = 0
+        
+        try:
+            import PyPDF2
+            with open(pdf.storage_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                total_pages = len(reader.pages)
+                for page_num, page in enumerate(reader.pages):
+                    page_text = page.extract_text() or ""
+                    if page_text.strip():
+                        text_content += f"\n--- Page {page_num + 1} ---\n{page_text}"
+        except ImportError:
+            # Fallback: create a single chunk with filename info
+            text_content = f"PDF uploaded: {pdf.filename}. Content extraction requires PyPDF2 (pip install PyPDF2)."
+            total_pages = 1
+        except Exception as e:
+            text_content = f"PDF uploaded: {pdf.filename}. Text extraction failed: {str(e)}"
+            total_pages = 1
+        
+        # Delete existing chunks for this PDF
+        db.query(PDFChunk).filter(PDFChunk.pdf_id == pdf_id).delete()
+        
+        # Split text into chunks of ~500 chars
+        chunk_size = 500
+        chunks_created = 0
+        
+        if text_content.strip():
+            words = text_content.split()
+            current_chunk = ""
+            current_page = 1
+            
+            for word in words:
+                if word.startswith("--- Page") and word.endswith("---"):
+                    continue
+                if word == "---":
+                    continue
+                if word == "Page":
+                    continue
+                    
+                # Track page numbers
+                if "--- Page" in current_chunk:
+                    try:
+                        page_marker = current_chunk.split("--- Page")[-1].split("---")[0].strip()
+                        current_page = int(page_marker) if page_marker.isdigit() else current_page
+                    except:
+                        pass
+                
+                current_chunk += " " + word
+                
+                if len(current_chunk) >= chunk_size:
+                    new_chunk = PDFChunk(
+                        pdf_id=pdf_id,
+                        content=current_chunk.strip(),
+                        source_file=pdf.filename,
+                        page_number=current_page,
+                        chunk_index=chunks_created
+                    )
+                    db.add(new_chunk)
+                    chunks_created += 1
+                    current_chunk = ""
+            
+            # Add remaining text as final chunk
+            if current_chunk.strip():
+                new_chunk = PDFChunk(
+                    pdf_id=pdf_id,
+                    content=current_chunk.strip(),
+                    source_file=pdf.filename,
+                    page_number=current_page,
+                    chunk_index=chunks_created
+                )
+                db.add(new_chunk)
+                chunks_created += 1
+        
+        # Update PDF record
+        pdf.status = "indexed"
+        pdf.total_pages = total_pages
+        pdf.total_chunks = chunks_created
+        db.commit()
+        
+        return {
+            "message": f"PDF indexed successfully: {chunks_created} chunks created from {total_pages} pages",
+            "total_pages": total_pages,
+            "total_chunks": chunks_created
+        }
+    
+    except Exception as e:
+        pdf.status = "index_failed"
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Indexing failed: {str(e)}")
+
+
+@router.get("/pdfs/{pdf_id}")
+async def get_pdf_detail(
+    pdf_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get PDF details with uploader info"""
+    pdf = db.query(PDF).filter(PDF.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+    
+    uploader = db.query(User).filter(User.id == pdf.uploaded_by).first()
+    
+    return {
+        "id": pdf.id,
+        "filename": pdf.filename,
+        "status": pdf.status,
+        "total_pages": pdf.total_pages,
+        "total_chunks": pdf.total_chunks,
+        "uploaded_by": pdf.uploaded_by,
+        "uploader_name": uploader.name if uploader else "Unknown",
+        "created_at": pdf.created_at.isoformat() if pdf.created_at else None
+    }

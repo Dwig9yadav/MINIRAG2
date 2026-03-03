@@ -79,29 +79,6 @@ const LoginRegister = () => {
     });
   };
 
-  const handleDemoLogin = async (institutionId, password) => {
-    setFormData({ institutionId, password });
-    setLoading(true);
-    setError('');
-    
-    try {
-      const response = await authAPI.login(institutionId, password);
-      const user = response.user;
-      
-      if (user.role === 'admin') {
-        navigate('/admin-dashboard');
-      } else if (user.role === 'teacher') {
-        navigate('/teacher-dashboard');
-      } else {
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      setError(err.message || 'Demo login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="auth-page">
       <AnimatedBackground />
@@ -200,31 +177,8 @@ const LoginRegister = () => {
           </form>
 
           {isLogin && (
-            <div className="demo-buttons">
-              <button 
-                type="button"
-                className="demo-btn student-demo"
-                onClick={() => handleDemoLogin('24155012345', 'demo123')}
-                disabled={loading}
-              >
-                🎓 Student Demo
-              </button>
-              <button 
-                type="button"
-                className="demo-btn teacher-demo"
-                onClick={() => handleDemoLogin('TCH001', 'teacher123')}
-                disabled={loading}
-              >
-                👨‍🏫 Teacher Demo
-              </button>
-              <button 
-                type="button"
-                className="demo-btn admin-demo"
-                onClick={() => handleDemoLogin('ADMIN001', 'admin123')}
-                disabled={loading}
-              >
-                👑 Admin Demo
-              </button>
+            <div className="auth-info-note">
+              <p>💡 Login with your Institution ID and password</p>
             </div>
           )}
 

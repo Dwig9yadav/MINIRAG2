@@ -72,12 +72,7 @@ async def get_usage_by_role(
             for r in results
         ]
     
-    # Demo data
-    return [
-        {"role": "student", "count": 850, "percentage": 65.0},
-        {"role": "teacher", "count": 380, "percentage": 29.0},
-        {"role": "admin", "count": 78, "percentage": 6.0}
-    ]
+    return []
 
 @router.get("/language-usage")
 async def get_language_usage(
@@ -96,12 +91,7 @@ async def get_language_usage(
     if results:
         return [{"language": r.language or "english", "count": r.count} for r in results]
     
-    # Demo data
-    return [
-        {"language": "english", "count": 520},
-        {"language": "hindi", "count": 280},
-        {"language": "hinglish", "count": 150}
-    ]
+    return []
 
 @router.get("/daily-queries")
 async def get_daily_queries(
@@ -125,15 +115,7 @@ async def get_daily_queries(
     if results:
         return [{"date": str(r.date), "count": r.count} for r in results]
     
-    # Generate demo data
-    demo_data = []
-    for i in range(days):
-        date = (datetime.utcnow() - timedelta(days=days-i)).date()
-        demo_data.append({
-            "date": str(date),
-            "count": 30 + (i % 10) * 5
-        })
-    return demo_data
+    return []
 
 @router.get("/student-insights")
 async def get_student_insights(
@@ -159,9 +141,7 @@ async def get_student_insights(
     active_learners = [
         {"name": a.name, "institution_id": a.institution_id, "searches": a.searches}
         for a in active
-    ] if active else [
-        {"name": "Demo Student", "institution_id": "24155012345", "searches": 45}
-    ]
+    ] if active else []
     
     return {
         "total_students": total_students,
@@ -186,11 +166,4 @@ async def get_top_topics(
     if results:
         return [{"topic": r.query, "count": r.count, "trend": "stable"} for r in results]
     
-    # Demo data
-    return [
-        {"topic": "Integration by parts", "count": 45, "trend": "up"},
-        {"topic": "Probability basics", "count": 38, "trend": "stable"},
-        {"topic": "Matrix multiplication", "count": 32, "trend": "down"},
-        {"topic": "Derivatives", "count": 28, "trend": "up"},
-        {"topic": "Statistics formulas", "count": 25, "trend": "stable"}
-    ]
+    return []
