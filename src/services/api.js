@@ -132,7 +132,7 @@ export const authAPI = {
 // ========================================
 export const usersAPI = {
     getAll: async (skip = 0, limit = 100) => {
-        return apiFetch(`/users?skip=${skip}&limit=${limit}`);
+        return apiFetch(`/users/?skip=${skip}&limit=${limit}`);
     },
     
     getById: async (userId) => {
@@ -243,7 +243,7 @@ export const ragAPI = {
 // ========================================
 export const feedbackAPI = {
     create: async (feedbackData) => {
-        return apiFetch('/feedback', {
+        return apiFetch('/feedback/', {
             method: 'POST',
             body: JSON.stringify(feedbackData),
         });
@@ -254,7 +254,7 @@ export const feedbackAPI = {
     },
     
     getAll: async (status = null) => {
-        const url = status ? `/feedback?status=${status}` : '/feedback';
+        const url = status ? `/feedback/?status=${status}` : '/feedback/';
         return apiFetch(url);
     },
     
