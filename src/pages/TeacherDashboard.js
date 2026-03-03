@@ -28,7 +28,7 @@ const TeacherDashboard = () => {
   
   // Feedback
   const [feedbackMessage, setFeedbackMessage] = useState('');
-  const [feedbackCategory, setFeedbackCategory] = useState('rag');
+  const [feedbackCategory, setFeedbackCategory] = useState('rag'); // eslint-disable-line no-unused-vars
   const [myFeedback, setMyFeedback] = useState([]);
   
   // Analytics
@@ -44,6 +44,7 @@ const TeacherDashboard = () => {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadData = async () => {

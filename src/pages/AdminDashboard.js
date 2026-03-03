@@ -37,6 +37,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadData = async () => {
@@ -137,7 +138,7 @@ const AdminDashboard = () => {
     if (!file) return;
     setUploadingPDF(true);
     try {
-      const result = await ragAPI.uploadPDF(file);
+      await ragAPI.uploadPDF(file);
       alert(`PDF "${file.name}" uploaded! Click Index to make it searchable.`);
       const pdfList = await ragAPI.getPDFs();
       setPdfs(pdfList);
