@@ -25,12 +25,16 @@ class _Response:
 def _clean_select(columns: str) -> str:
     """Strip whitespace around commas in a select string while preserving
     PostgREST relationship syntax like ``users!sender_id(name, avatar)``."""
-    # Don't touch the inside of parentheses (embedded resources)
+    # Split on parenthesised groups so we can clean inside and outside
     parts = re.split(r"(\([^)]*\))", columns)
     cleaned = []
     for i, part in enumerate(parts):
         if i % 2 == 0:  # outside parentheses
             part = ",".join(seg.strip() for seg in part.split(","))
+        else:  # inside parentheses — also strip spaces around commas
+            inner = part[1:-1]
+            inner = ",".join(seg.strip() for seg in inner.split(","))
+            part = f"({inner})"
         cleaned.append(part)
     return "".join(cleaned)
 
@@ -157,21 +161,48 @@ class _QueryBuilder:
 
     # --- execute ---
 
+    @staticmethod
+    def _encode_postgrest_value(v: str) -> str:
+        """Minimally encode a PostgREST query-parameter value.
+
+        PostgREST gives special meaning to  , ( ) ! * .  in query values
+        (column lists, embedded resources, operators).  Those MUST remain
+        literal.  We only percent-encode the handful of chars that would
+        break URL structure."""
+        v = v.replace("%", "%25")   # must be first
+        v = v.replace("&", "%26")
+        v = v.replace("#", "%23")
+        v = v.replace("+", "%2B")
+        v = v.replace(" ", "%20")
+        return v
+
+    def _build_url(self) -> str:
+        """Build the full request URL with a PostgREST-safe query string."""
+        if not self._params:
+            return self._base
+        qs = "&".join(
+            f"{k}={self._encode_postgrest_value(v)}"
+            for k, v in self._params
+        )
+        return f"{self._base}?{qs}"
+
     def execute(self) -> _Response:
         headers = {**self._headers, "Content-Type": "application/json",
                    "Accept": "application/json"}
         if self._prefer:
             headers["Prefer"] = ", ".join(self._prefer)
 
+        url = self._build_url()
+
         with httpx.Client(timeout=_TIMEOUT) as client:
             if self._method == "GET":
-                r = client.get(self._base, headers=headers, params=self._params)
+                r = client.get(url, headers=headers)
             elif self._method == "POST":
-                r = client.post(self._base, headers=headers, params=self._params, json=self._body)
+                r = client.post(url, headers=headers, json=self._body)
             elif self._method == "PATCH":
-                r = client.patch(self._base, headers=headers, params=self._params, json=self._body)
+                r = client.patch(url, headers=headers, json=self._body)
             elif self._method == "DELETE":
-                r = client.delete(self._base, headers=headers, params=self._params)
+                r = client.delete(url, headers=headers)
             else:
                 raise ValueError(f"Unsupported method: {self._method}")
 

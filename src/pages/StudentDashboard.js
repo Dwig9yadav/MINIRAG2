@@ -47,13 +47,17 @@ const StudentDashboard = () => {
       setEditName(user.name);
       setSelectedAvatar(user.avatar || 'male');
       
-      // Load buddies (other students)
-      const students = await usersAPI.getStudents();
-      setBuddies(students.filter(s => s.id !== user.id));
-      
-      // Load search history
-      const history = await ragAPI.getSearchHistory(5);
-      setSearchHistory(history);
+      // Load all data independently
+      const results = await Promise.allSettled([
+        usersAPI.getStudents(),
+        ragAPI.getSearchHistory(5),
+      ]);
+
+      if (results[0].status === 'fulfilled') {
+        const students = results[0].value || [];
+        setBuddies(students.filter(s => s.id !== user.id));
+      }
+      if (results[1].status === 'fulfilled') setSearchHistory(results[1].value || []);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {

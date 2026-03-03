@@ -59,33 +59,25 @@ const TeacherDashboard = () => {
       setEditName(user.name);
       setSelectedAvatar(user.avatar || 'male');
       
-      // Load teachers
-      const teacherList = await usersAPI.getTeachers();
-      setTeachers(teacherList.filter(t => t.id !== user.id));
-      
-      // Load trending topics (student problems)
-      const trending = await ragAPI.getTrendingTopics();
-      setStudentProblems(trending);
-      
-      // Load my feedback
-      const feedback = await feedbackAPI.getMine();
-      setMyFeedback(feedback);
-      
-      // Load analytics
-      try {
-        const insights = await analyticsAPI.getStudentInsights();
-        setAnalytics(insights);
-      } catch (e) {
-        console.log('Analytics not available for teachers');
+      // Load all data independently — one failure must not block others
+      const results = await Promise.allSettled([
+        usersAPI.getTeachers(),
+        ragAPI.getTrendingTopics(),
+        feedbackAPI.getMine(),
+        analyticsAPI.getStudentInsights(),
+        ragAPI.getPDFs(),
+        ragAPI.getSearchHistory(),
+      ]);
+
+      if (results[0].status === 'fulfilled') {
+        const teacherList = results[0].value || [];
+        setTeachers(teacherList.filter(t => t.id !== user.id));
       }
-      
-      // Load PDFs
-      const pdfList = await ragAPI.getPDFs();
-      setPdfs(pdfList);
-      
-      // Load search history
-      const history = await ragAPI.getSearchHistory();
-      setSearchHistory(history);
+      if (results[1].status === 'fulfilled') setStudentProblems(results[1].value || []);
+      if (results[2].status === 'fulfilled') setMyFeedback(results[2].value || []);
+      if (results[3].status === 'fulfilled') setAnalytics(results[3].value);
+      if (results[4].status === 'fulfilled') setPdfs(results[4].value || []);
+      if (results[5].status === 'fulfilled') setSearchHistory(results[5].value || []);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {

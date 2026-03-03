@@ -52,21 +52,25 @@ const AdminDashboard = () => {
       setEditName(user.name);
       setSelectedAvatar(user.avatar || 'male');
       
-      // Load all users
-      const userList = await usersAPI.getAll();
-      setUsers(userList);
-      
-      // Load feedback
-      const feedback = await feedbackAPI.getAll();
-      setTeacherFeedback(feedback);
-      
-      // Load analytics
-      const stats = await analyticsAPI.getSummary();
-      setAnalytics(stats);
-      
-      // Load PDFs
-      const pdfList = await ragAPI.getPDFs();
-      setPdfs(pdfList);
+      // Load all data independently — one failure must not block others
+      const results = await Promise.allSettled([
+        usersAPI.getAll(),
+        feedbackAPI.getAll(),
+        analyticsAPI.getSummary(),
+        ragAPI.getPDFs(),
+      ]);
+
+      if (results[0].status === 'fulfilled') setUsers(results[0].value || []);
+      else console.error('Error loading users:', results[0].reason);
+
+      if (results[1].status === 'fulfilled') setTeacherFeedback(results[1].value || []);
+      else console.error('Error loading feedback:', results[1].reason);
+
+      if (results[2].status === 'fulfilled') setAnalytics(results[2].value);
+      else console.error('Error loading analytics:', results[2].reason);
+
+      if (results[3].status === 'fulfilled') setPdfs(results[3].value || []);
+      else console.error('Error loading PDFs:', results[3].reason);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
