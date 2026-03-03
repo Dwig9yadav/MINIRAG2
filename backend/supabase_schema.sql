@@ -119,15 +119,18 @@ CREATE INDEX IF NOT EXISTS idx_re_pdf   ON rag_embeddings(pdf_id);
 CREATE INDEX IF NOT EXISTS idx_re_chunk ON rag_embeddings(pdf_chunk_id);
 
 -- =============================================
--- Row Level Security (optional — service role
--- key bypasses RLS, so these only matter if
--- you also use the anon key from a client)
+-- Row Level Security — service role key bypasses
+-- RLS, so these policies allow full access for
+-- the backend. All 8 tables covered.
 -- =============================================
 ALTER TABLE users             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE search_history    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE feedback          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_feedback  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analytics_events  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pdfs              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pdf_chunks        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rag_embeddings    ENABLE ROW LEVEL SECURITY;
 
 -- Allow service role full access (backend uses service role key)
 CREATE POLICY "Service role full access" ON users            FOR ALL USING (true) WITH CHECK (true);
@@ -135,3 +138,22 @@ CREATE POLICY "Service role full access" ON search_history   FOR ALL USING (true
 CREATE POLICY "Service role full access" ON feedback         FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access" ON student_feedback FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Service role full access" ON analytics_events FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON pdfs             FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON pdf_chunks       FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON rag_embeddings   FOR ALL USING (true) WITH CHECK (true);
+
+-- =============================================
+-- Storage bucket for PDF files
+-- NOTE: Also create this manually in Supabase
+-- Dashboard → Storage → New Bucket → "pdfs" (private)
+-- OR run this (works in SQL editor):
+-- =============================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('pdfs', 'pdfs', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Allow service role to manage files in the pdfs bucket
+CREATE POLICY "Service role storage access"
+ON storage.objects FOR ALL
+USING (bucket_id = 'pdfs')
+WITH CHECK (bucket_id = 'pdfs');
