@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
+import { authAPI } from '../services/api';
 import './LoginRegister.css';
 
 const LoginRegister = () => {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     institutionId: '',
@@ -19,20 +22,54 @@ const LoginRegister = () => {
       ...prev,
       [name]: value
     }));
+    setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // No backend connection yet - just redirect to dashboard
-    if (isLogin || formData.password === formData.confirmPassword) {
-      navigate('/dashboard');
-    } else {
-      alert('Passwords do not match');
+    setLoading(true);
+    setError('');
+
+    try {
+      if (isLogin) {
+        const response = await authAPI.login(formData.institutionId, formData.password);
+        const user = response.user;
+        
+        // Navigate based on role
+        if (user.role === 'admin') {
+          navigate('/admin-dashboard');
+        } else if (user.role === 'teacher') {
+          navigate('/teacher-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      } else {
+        if (formData.password !== formData.confirmPassword) {
+          setError('Passwords do not match');
+          setLoading(false);
+          return;
+        }
+        
+        await authAPI.register({
+          name: formData.name,
+          institution_id: formData.institutionId,
+          password: formData.password,
+          avatar: 'male',
+          role: 'student'
+        });
+        
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
     }
   };
 
   const toggleMode = () => {
     setIsLogin(!isLogin);
+    setError('');
     setFormData({
       name: '',
       institutionId: '',
@@ -41,37 +78,27 @@ const LoginRegister = () => {
     });
   };
 
-  const handleDemoLogin = () => {
-    setFormData({
-      institutionId: '24155012345',
-      password: 'demo123'
-    });
-    setIsLogin(true);
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 300);
-  };
-
-  const handleDemoTeacherLogin = () => {
-    setFormData({
-      institutionId: 'TCH001',
-      password: 'teacher123'
-    });
-    setIsLogin(true);
-    setTimeout(() => {
-      navigate('/teacher-dashboard');
-    }, 300);
-  };
-
-  const handleDemoAdminLogin = () => {
-    setFormData({
-      institutionId: 'ADMIN001',
-      password: 'admin123'
-    });
-    setIsLogin(true);
-    setTimeout(() => {
-      navigate('/admin-dashboard');
-    }, 300);
+  const handleDemoLogin = async (institutionId, password) => {
+    setFormData({ institutionId, password });
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await authAPI.login(institutionId, password);
+      const user = response.user;
+      
+      if (user.role === 'admin') {
+        navigate('/admin-dashboard');
+      } else if (user.role === 'teacher') {
+        navigate('/teacher-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      setError(err.message || 'Demo login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -100,6 +127,8 @@ const LoginRegister = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="auth-form">
+            {error && <div className="error-message">{error}</div>}
+            
             {!isLogin && (
               <div className="form-group">
                 <label htmlFor="name">Full Name</label>
@@ -111,6 +140,7 @@ const LoginRegister = () => {
                   value={formData.name}
                   onChange={handleChange}
                   required={!isLogin}
+                  disabled={loading}
                 />
               </div>
             )}
@@ -121,10 +151,11 @@ const LoginRegister = () => {
                 type="text"
                 id="institutionId"
                 name="institutionId"
-                placeholder="Format: 241550xxxx"
+                placeholder="Enter your institution ID"
                 value={formData.institutionId}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -138,6 +169,7 @@ const LoginRegister = () => {
                 value={formData.password}
                 onChange={handleChange}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -153,6 +185,7 @@ const LoginRegister = () => {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     required={!isLogin}
+                    disabled={loading}
                   />
                 </div>
 
@@ -160,8 +193,8 @@ const LoginRegister = () => {
               </>
             )}
 
-            <button type="submit" className="submit-btn">
-              {isLogin ? 'Login' : 'Register'}
+            <button type="submit" className="submit-btn" disabled={loading}>
+              {loading ? 'Please wait...' : (isLogin ? 'Login' : 'Register')}
             </button>
           </form>
 
@@ -170,23 +203,26 @@ const LoginRegister = () => {
               <button 
                 type="button"
                 className="demo-btn student-demo"
-                onClick={handleDemoLogin}
+                onClick={() => handleDemoLogin('24155012345', 'demo123')}
+                disabled={loading}
               >
-                🎓 Student Demo (ID: 24155012345)
+                🎓 Student Demo
               </button>
               <button 
                 type="button"
                 className="demo-btn teacher-demo"
-                onClick={handleDemoTeacherLogin}
+                onClick={() => handleDemoLogin('TCH001', 'teacher123')}
+                disabled={loading}
               >
-                👨‍🏫 Teacher Demo (ID: TCH001)
+                👨‍🏫 Teacher Demo
               </button>
               <button 
                 type="button"
                 className="demo-btn admin-demo"
-                onClick={handleDemoAdminLogin}
+                onClick={() => handleDemoLogin('ADMIN001', 'admin123')}
+                disabled={loading}
               >
-                👑 Admin Demo (ID: ADMIN001)
+                👑 Admin Demo
               </button>
             </div>
           )}

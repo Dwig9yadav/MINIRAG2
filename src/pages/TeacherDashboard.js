@@ -1,45 +1,112 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
+import { authAPI, ragAPI, usersAPI, feedbackAPI, analyticsAPI } from '../services/api';
 import './TeacherDashboard.css';
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('rag-search');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [userName, setUserName] = useState('Dr. Smith');
-  const [editName, setEditName] = useState('Dr. Smith');
+  const [loading, setLoading] = useState(true);
+  
+  // User data
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userName, setUserName] = useState('');
+  const [editName, setEditName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('male');
+  
+  // Teachers from API
+  const [teachers, setTeachers] = useState([]);
+  
+  // Student analysis from API
+  const [studentProblems, setStudentProblems] = useState([]);
+  
+  // Feedback
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState('rag');
+  const [myFeedback, setMyFeedback] = useState([]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const user = authAPI.getCurrentUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+      setCurrentUser(user);
+      setUserName(user.name);
+      setEditName(user.name);
+      setSelectedAvatar(user.avatar || 'male');
+      
+      // Load teachers
+      const teacherList = await usersAPI.getTeachers();
+      setTeachers(teacherList.filter(t => t.id !== user.id));
+      
+      // Load trending topics (student problems)
+      const trending = await ragAPI.getTrendingTopics();
+      setStudentProblems(trending);
+      
+      // Load my feedback
+      const feedback = await feedbackAPI.getMine();
+      setMyFeedback(feedback);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const results = await ragAPI.search(searchQuery);
+      setSearchResults(results.results || []);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSendFeedback = async () => {
+    if (!feedbackMessage.trim()) return;
+    try {
+      await feedbackAPI.create({
+        category: feedbackCategory,
+        message: feedbackMessage
+      });
+      alert('Feedback sent to Admin successfully!');
+      setFeedbackMessage('');
+      // Reload feedback
+      const feedback = await feedbackAPI.getMine();
+      setMyFeedback(feedback);
+    } catch (error) {
+      alert('Failed to send feedback: ' + error.message);
+    }
+  };
 
   const handleLogout = () => {
+    authAPI.logout();
     navigate('/');
   };
 
-  // Sample teachers data
-  const teachers = [
-    { id: 1, name: 'Dr. Rajesh Kumar', subject: 'Mathematics', avatar: 'male', status: 'Online' },
-    { id: 2, name: 'Prof. Meera Joshi', subject: 'Physics', avatar: 'female', status: 'Offline' },
-    { id: 3, name: 'Dr. Anil Verma', subject: 'Chemistry', avatar: 'male', status: 'Online' },
-    { id: 4, name: 'Prof. Sunita Sharma', subject: 'Biology', avatar: 'female', status: 'Online' },
-  ];
-
-  // Sample student problems for analysis (from RAG data)
-  const studentProblems = [
-    { topic: 'Calculus Integration', count: 45, difficulty: 'High' },
-    { topic: 'Linear Algebra', count: 32, difficulty: 'Medium' },
-    { topic: 'Probability Theory', count: 28, difficulty: 'High' },
-    { topic: 'Differential Equations', count: 24, difficulty: 'Medium' },
-    { topic: 'Statistics Basics', count: 18, difficulty: 'Low' },
-  ];
-
-  const handleSendFeedback = () => {
-    if (feedbackMessage.trim()) {
-      alert('Feedback sent to Admin successfully!');
-      setFeedbackMessage('');
-    }
-  };
+  if (loading) {
+    return (
+      <div className="teacher-dashboard loading-screen">
+        <AnimatedBackground />
+        <div className="loading-content">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="teacher-dashboard">
@@ -99,7 +166,7 @@ const TeacherDashboard = () => {
             />
             <div className="user-info">
               <p className="user-name">{userName}</p>
-              <p className="user-id">Teacher ID: TCH001</p>
+              <p className="user-id">Teacher ID: {currentUser?.institution_id || ''}</p>
             </div>
           </div>
           <button 
@@ -206,9 +273,10 @@ const TeacherDashboard = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="large-search-input"
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   />
-                  <button className="search-btn">
-                    <span>🔍</span> Search with RAG
+                  <button className="search-btn" onClick={handleSearch} disabled={searching}>
+                    <span>🔍</span> {searching ? 'Searching...' : 'Search with RAG'}
                   </button>
                 </div>
 
@@ -270,20 +338,22 @@ const TeacherDashboard = () => {
               <p className="section-desc">View other teachers in your institution</p>
               
               <div className="teachers-grid">
-                {teachers.map((teacher) => (
+                {teachers.length > 0 ? teachers.map((teacher) => (
                   <div key={teacher.id} className="teacher-card">
                     <img 
-                      src={teacher.avatar === 'male' ? '/images/male.png' : '/images/female.png'}
+                      src={teacher.avatar === 'female' ? '/images/female.png' : '/images/male.png'}
                       alt={teacher.name}
                       className="teacher-avatar-img"
                     />
                     <h3>{teacher.name}</h3>
-                    <p className="teacher-subject">{teacher.subject}</p>
-                    <span className={`teacher-status ${teacher.status.toLowerCase()}`}>
-                      {teacher.status === 'Online' ? '🟢' : '⚫'} {teacher.status}
+                    <p className="teacher-subject">ID: {teacher.institution_id}</p>
+                    <span className={`teacher-status ${teacher.status}`}>
+                      {teacher.status === 'active' ? '🟢 Active' : '⚫ Inactive'}
                     </span>
                   </div>
-                ))}
+                )) : (
+                  <p className="no-data">No other teachers found</p>
+                )}
               </div>
             </section>
           )}

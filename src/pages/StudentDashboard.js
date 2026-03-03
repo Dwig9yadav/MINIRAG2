@@ -1,20 +1,101 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
+import { authAPI, ragAPI, usersAPI, studentFeedbackAPI } from '../services/api';
 import './StudentDashboard.css';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('rag-search');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [userName, setUserName] = useState('John Doe');
-  const [editName, setEditName] = useState('John Doe');
+  const [loading, setLoading] = useState(true);
+  
+  // User data from API
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userName, setUserName] = useState('');
+  const [editName, setEditName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('male');
+  
+  // Buddies from API
+  const [buddies, setBuddies] = useState([]);
+  
+  // Search history
+  const [searchHistory, setSearchHistory] = useState([]);
+  
+  // Feedback
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(true);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const user = authAPI.getCurrentUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+      setCurrentUser(user);
+      setUserName(user.name);
+      setEditName(user.name);
+      setSelectedAvatar(user.avatar || 'male');
+      
+      // Load buddies (other students)
+      const students = await usersAPI.getStudents();
+      setBuddies(students.filter(s => s.id !== user.id));
+      
+      // Load search history
+      const history = await ragAPI.getSearchHistory(5);
+      setSearchHistory(history);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const results = await ragAPI.search(searchQuery);
+      setSearchResults(results.results || []);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSendFeedback = async () => {
+    if (!feedbackMessage.trim()) return;
+    try {
+      await studentFeedbackAPI.send(feedbackMessage, isAnonymous);
+      alert('Feedback sent successfully!');
+      setFeedbackMessage('');
+    } catch (error) {
+      alert('Failed to send feedback');
+    }
+  };
 
   const handleLogout = () => {
+    authAPI.logout();
     navigate('/');
   };
+
+  if (loading) {
+    return (
+      <div className="dashboard loading-screen">
+        <AnimatedBackground />
+        <div className="loading-content">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
@@ -69,7 +150,7 @@ const StudentDashboard = () => {
             />
             <div className="user-info">
               <p className="user-name">{userName}</p>
-              <p className="user-id">241550xxxx</p>
+              <p className="user-id">{currentUser?.institution_id || ''}</p>
             </div>
           </div>
           <button 
@@ -176,9 +257,10 @@ const StudentDashboard = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="large-search-input"
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   />
-                  <button className="search-btn">
-                    <span>🔍</span> Search
+                  <button className="search-btn" onClick={handleSearch} disabled={searching}>
+                    <span>🔍</span> {searching ? 'Searching...' : 'Search'}
                   </button>
                 </div>
 
@@ -193,25 +275,45 @@ const StudentDashboard = () => {
               </div>
 
               <div className="search-results">
-                <h3>Quick Tips</h3>
-                <div className="tips-grid">
-                  <div className="tip-card">
-                    <span className="tip-icon">💡</span>
-                    <p>Use specific keywords for better results</p>
-                  </div>
-                  <div className="tip-card">
-                    <span className="tip-icon">📚</span>
-                    <p>Search across all your uploaded PDFs</p>
-                  </div>
-                  <div className="tip-card">
-                    <span className="tip-icon">🎯</span>
-                    <p>Get AI-powered answers instantly</p>
-                  </div>
-                  <div className="tip-card">
-                    <span className="tip-icon">🌍</span>
-                    <p>Support for multiple languages</p>
-                  </div>
-                </div>
+                {searchResults.length > 0 ? (
+                  <>
+                    <h3>Search Results</h3>
+                    <div className="results-list">
+                      {searchResults.map((result, idx) => (
+                        <div key={idx} className="result-card">
+                          <div className="result-header">
+                            <span className="result-source">{result.source}</span>
+                            <span className="result-score">{Math.round(result.relevance_score * 100)}% match</span>
+                          </div>
+                          <p className="result-content">{result.content}</p>
+                          <span className="result-page">Page {result.page_number}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3>Quick Tips</h3>
+                    <div className="tips-grid">
+                      <div className="tip-card">
+                        <span className="tip-icon">💡</span>
+                        <p>Use specific keywords for better results</p>
+                      </div>
+                      <div className="tip-card">
+                        <span className="tip-icon">📚</span>
+                        <p>Search across all your uploaded PDFs</p>
+                      </div>
+                      <div className="tip-card">
+                        <span className="tip-icon">🎯</span>
+                        <p>Get AI-powered answers instantly</p>
+                      </div>
+                      <div className="tip-card">
+                        <span className="tip-icon">🌍</span>
+                        <p>Support for multiple languages</p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </section>
           )}
@@ -221,18 +323,20 @@ const StudentDashboard = () => {
             <section className="tab-content buddies-section">
               <h2>Student Buddies</h2>
               <div className="buddies-grid">
-                {[1, 2, 3, 4, 5, 6].map((buddy) => (
-                  <div key={buddy} className="buddy-card">
+                {buddies.length > 0 ? buddies.map((buddy) => (
+                  <div key={buddy.id} className="buddy-card">
                     <img 
-                      src={buddy % 2 === 0 ? '/images/female.png' : '/images/male.png'}
-                      alt={buddy % 2 === 0 ? 'female' : 'male'}
+                      src={buddy.avatar === 'female' ? '/images/female.png' : '/images/male.png'}
+                      alt={buddy.avatar || 'male'}
                       className="buddy-avatar-img"
                     />
-                    <h3>Student {buddy}</h3>
-                    <p className="buddy-id">ID: 241550{1000 + buddy}</p>
-                    <p className="buddy-status">Active</p>
+                    <h3>{buddy.name}</h3>
+                    <p className="buddy-id">ID: {buddy.institution_id}</p>
+                    <p className="buddy-status">{buddy.status === 'active' ? 'Active' : 'Inactive'}</p>
                   </div>
-                ))}
+                )) : (
+                  <p className="no-data">No other students found</p>
+                )}
               </div>
             </section>
           )}
@@ -247,32 +351,39 @@ const StudentDashboard = () => {
                   <textarea
                     placeholder="Share your feedback with teachers..."
                     rows="6"
+                    value={feedbackMessage}
+                    onChange={(e) => setFeedbackMessage(e.target.value)}
                   ></textarea>
                 </div>
 
                 <div className="form-group">
-                  <label>Show Your Identity?</label>
+                  <label>Send as Anonymous?</label>
                   <div className="toggle-switch">
-                    <input type="checkbox" id="identity-toggle" />
-                    <label htmlFor="identity-toggle">Anonymous</label>
+                    <input 
+                      type="checkbox" 
+                      id="identity-toggle" 
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                    />
+                    <label htmlFor="identity-toggle">{isAnonymous ? 'Anonymous' : 'With Name'}</label>
                     <span className="toggle-slider"></span>
                   </div>
                 </div>
 
-                <button className="submit-feedback-btn">Send Feedback</button>
+                <button className="submit-feedback-btn" onClick={handleSendFeedback}>Send Feedback</button>
               </div>
 
               <div className="feedback-history">
-                <h3>Your Previous Feedback</h3>
+                <h3>Recent Search History</h3>
                 <div className="feedback-list">
-                  <div className="feedback-item">
-                    <p className="feedback-text">Great teaching materials, very helpful!</p>
-                    <p className="feedback-time">2 days ago</p>
-                  </div>
-                  <div className="feedback-item">
-                    <p className="feedback-text">Could you explain chapter 5 in more detail?</p>
-                    <p className="feedback-time">1 week ago</p>
-                  </div>
+                  {searchHistory.length > 0 ? searchHistory.map((item, idx) => (
+                    <div key={idx} className="feedback-item">
+                      <p className="feedback-text">{item.query}</p>
+                      <p className="feedback-time">{new Date(item.created_at).toLocaleDateString()}</p>
+                    </div>
+                  )) : (
+                    <p className="no-data">No search history yet</p>
+                  )}
                 </div>
               </div>
             </section>

@@ -1,89 +1,118 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
+import { authAPI, usersAPI, feedbackAPI, analyticsAPI, ragAPI } from '../services/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [userName, setUserName] = useState('Admin');
-  const [editName, setEditName] = useState('Admin');
+  const [loading, setLoading] = useState(true);
+
+  // User data
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userName, setUserName] = useState('');
+  const [editName, setEditName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('male');
   const [userFilter, setUserFilter] = useState('all');
 
-  // Sample users data
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Rahul Kumar', institutionId: '2415501001', role: 'student', avatar: 'male', status: 'active' },
-    { id: 2, name: 'Priya Singh', institutionId: '2415501002', role: 'student', avatar: 'female', status: 'active' },
-    { id: 3, name: 'Dr. Rajesh Kumar', institutionId: 'TCH001', role: 'teacher', avatar: 'male', status: 'active' },
-    { id: 4, name: 'Prof. Meera Joshi', institutionId: 'TCH002', role: 'teacher', avatar: 'female', status: 'active' },
-    { id: 5, name: 'Amit Sharma', institutionId: '2415501003', role: 'student', avatar: 'male', status: 'inactive' },
-    { id: 6, name: 'Sneha Patel', institutionId: '2415501004', role: 'student', avatar: 'female', status: 'active' },
-    { id: 7, name: 'Dr. Anil Verma', institutionId: 'TCH003', role: 'teacher', avatar: 'male', status: 'active' },
-    { id: 8, name: 'Vikash Gupta', institutionId: '2415501005', role: 'student', avatar: 'male', status: 'active' },
-  ]);
+  // Users from API
+  const [users, setUsers] = useState([]);
+  
+  // Feedback from API
+  const [teacherFeedback, setTeacherFeedback] = useState([]);
+  
+  // Analytics from API
+  const [analytics, setAnalytics] = useState(null);
 
-  // Sample teacher feedback
-  const teacherFeedback = [
-    { 
-      id: 1, 
-      teacher: 'Dr. Rajesh Kumar', 
-      teacherId: 'TCH001',
-      avatar: 'male',
-      category: 'RAG Improvement', 
-      message: 'The RAG system needs better Hindi language support. Students are struggling with translations.',
-      date: 'Mar 1, 2026',
-      status: 'pending'
-    },
-    { 
-      id: 2, 
-      teacher: 'Prof. Meera Joshi', 
-      teacherId: 'TCH002',
-      avatar: 'female',
-      category: 'Feature Request', 
-      message: 'Request for bulk PDF upload feature to add multiple course materials at once.',
-      date: 'Feb 28, 2026',
-      status: 'responded'
-    },
-    { 
-      id: 3, 
-      teacher: 'Dr. Anil Verma', 
-      teacherId: 'TCH003',
-      avatar: 'male',
-      category: 'System Issue', 
-      message: 'RAG search is slow during peak hours. Need performance optimization.',
-      date: 'Feb 27, 2026',
-      status: 'pending'
-    },
-    { 
-      id: 4, 
-      teacher: 'Prof. Sunita Sharma', 
-      teacherId: 'TCH004',
-      avatar: 'female',
-      category: 'Content Suggestion', 
-      message: 'Suggest adding video lecture integration with RAG for better comprehension.',
-      date: 'Feb 25, 2026',
-      status: 'responded'
-    },
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const user = authAPI.getCurrentUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+      setCurrentUser(user);
+      setUserName(user.name);
+      setEditName(user.name);
+      setSelectedAvatar(user.avatar || 'male');
+      
+      // Load all users
+      const userList = await usersAPI.getAll();
+      setUsers(userList);
+      
+      // Load feedback
+      const feedback = await feedbackAPI.getAll();
+      setTeacherFeedback(feedback);
+      
+      // Load analytics
+      const stats = await analyticsAPI.getSummary();
+      setAnalytics(stats);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const results = await ragAPI.search(searchQuery);
+      setSearchResults(results.results || []);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const handleLogout = () => {
+    authAPI.logout();
     navigate('/');
   };
 
-  const handleRoleChange = (userId, newRole) => {
-    setUsers(users.map(user => 
-      user.id === userId ? { ...user, role: newRole } : user
-    ));
-    alert(`User role updated to ${newRole}!`);
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await usersAPI.updateRole(userId, newRole);
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      ));
+      alert(`User role updated to ${newRole}!`);
+    } catch (error) {
+      alert('Failed to update role: ' + error.message);
+    }
   };
 
-  const handleDeleteUser = (userId) => {
+  const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(user => user.id !== userId));
-      alert('User deleted successfully!');
+      try {
+        await usersAPI.delete(userId);
+        setUsers(users.filter(user => user.id !== userId));
+        alert('User deleted successfully!');
+      } catch (error) {
+        alert('Failed to delete user: ' + error.message);
+      }
+    }
+  };
+
+  const handleRespondFeedback = async (feedbackId, response) => {
+    try {
+      await feedbackAPI.respond(feedbackId, response);
+      const feedback = await feedbackAPI.getAll();
+      setTeacherFeedback(feedback);
+      alert('Response sent!');
+    } catch (error) {
+      alert('Failed to respond: ' + error.message);
     }
   };
 
@@ -91,6 +120,15 @@ const AdminDashboard = () => {
     if (userFilter === 'all') return true;
     return user.role === userFilter;
   });
+
+  if (loading) {
+    return (
+      <div className="admin-dashboard loading-screen">
+        <AnimatedBackground />
+        <div className="loading-content">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-dashboard">
@@ -150,7 +188,7 @@ const AdminDashboard = () => {
             />
             <div className="user-info">
               <p className="user-name">{userName}</p>
-              <p className="user-id">Admin ID: ADMIN001</p>
+              <p className="user-id">Admin ID: {currentUser?.institution_id || ''}</p>
             </div>
           </div>
           <button 
@@ -282,13 +320,13 @@ const AdminDashboard = () => {
                   <div key={user.id} className="table-row">
                     <div className="user-cell">
                       <img 
-                        src={user.avatar === 'male' ? '/images/male.png' : '/images/female.png'}
+                        src={user.avatar === 'female' ? '/images/female.png' : '/images/male.png'}
                         alt={user.name}
                         className="table-avatar"
                       />
                       <span>{user.name}</span>
                     </div>
-                    <span className="id-cell">{user.institutionId}</span>
+                    <span className="id-cell">{user.institution_id}</span>
                     <span className={`role-cell ${user.role}`}>
                       {user.role === 'student' ? '🎓' : user.role === 'teacher' ? '👨‍🏫' : '👑'} {user.role}
                     </span>
@@ -341,35 +379,49 @@ const AdminDashboard = () => {
               </div>
 
               <div className="feedback-list">
-                {teacherFeedback.map((feedback) => (
+                {teacherFeedback.length > 0 ? teacherFeedback.map((feedback) => (
                   <div key={feedback.id} className="feedback-card">
                     <div className="feedback-sender">
                       <img 
-                        src={feedback.avatar === 'male' ? '/images/male.png' : '/images/female.png'}
-                        alt={feedback.teacher}
+                        src={feedback.sender_avatar === 'female' ? '/images/female.png' : '/images/male.png'}
+                        alt={feedback.sender_name}
                         className="feedback-avatar"
                       />
                       <div className="sender-details">
-                        <p className="sender-name">{feedback.teacher}</p>
-                        <p className="sender-id">ID: {feedback.teacherId}</p>
+                        <p className="sender-name">{feedback.sender_name}</p>
+                        <p className="sender-id">ID: {feedback.sender_institution_id}</p>
                       </div>
                       <span className={`feedback-status-badge ${feedback.status}`}>
-                        {feedback.status === 'pending' ? '⏳ Pending' : '✓ Responded'}
+                        {feedback.status === 'pending' ? '⏳ Pending' : feedback.status === 'responded' ? '✓ Responded' : '📁 Archived'}
                       </span>
                     </div>
                     <div className="feedback-content">
                       <div className="feedback-meta">
                         <span className="feedback-category">{feedback.category}</span>
-                        <span className="feedback-date">{feedback.date}</span>
+                        <span className="feedback-date">{new Date(feedback.created_at).toLocaleDateString()}</span>
                       </div>
                       <p className="feedback-message">{feedback.message}</p>
+                      {feedback.admin_response && (
+                        <div className="admin-response">
+                          <strong>Response:</strong> {feedback.admin_response}
+                        </div>
+                      )}
                     </div>
-                    <div className="feedback-actions">
-                      <button className="respond-btn">📝 Respond</button>
-                      <button className="archive-btn">📁 Archive</button>
-                    </div>
+                    {feedback.status === 'pending' && (
+                      <div className="feedback-actions">
+                        <button 
+                          className="respond-btn"
+                          onClick={() => {
+                            const response = prompt('Enter your response:');
+                            if (response) handleRespondFeedback(feedback.id, response);
+                          }}
+                        >📝 Respond</button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                )) : (
+                  <p className="no-data">No feedback received yet</p>
+                )}
               </div>
             </section>
           )}
@@ -388,11 +440,27 @@ const AdminDashboard = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="large-search-input"
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   />
-                  <button className="search-btn">
-                    <span>🔍</span> Search with RAG
+                  <button className="search-btn" onClick={handleSearch} disabled={searching}>
+                    <span>🔍</span> {searching ? 'Searching...' : 'Search with RAG'}
                   </button>
                 </div>
+
+                {searchResults.length > 0 && (
+                  <div className="search-results">
+                    <h3>Search Results</h3>
+                    {searchResults.map((result, idx) => (
+                      <div key={idx} className="result-card">
+                        <div className="result-header">
+                          <span className="result-source">{result.source}</span>
+                          <span className="result-score">{Math.round(result.relevance_score * 100)}%</span>
+                        </div>
+                        <p>{result.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="language-selector">
                   <label>Language Preference:</label>
@@ -455,55 +523,55 @@ const AdminDashboard = () => {
                 <div className="analytics-card">
                   <span className="analytics-icon">📈</span>
                   <div className="analytics-info">
-                    <p className="analytics-number">1,247</p>
+                    <p className="analytics-number">{analytics?.total_searches || 0}</p>
                     <p className="analytics-label">Total RAG Queries</p>
                   </div>
                 </div>
                 <div className="analytics-card">
                   <span className="analytics-icon">📚</span>
                   <div className="analytics-info">
-                    <p className="analytics-number">156</p>
+                    <p className="analytics-number">{analytics?.total_pdfs || 0}</p>
                     <p className="analytics-label">PDFs Indexed</p>
                   </div>
                 </div>
                 <div className="analytics-card">
-                  <span className="analytics-icon">🎯</span>
+                  <span className="analytics-icon">👥</span>
                   <div className="analytics-info">
-                    <p className="analytics-number">92%</p>
-                    <p className="analytics-label">RAG Accuracy</p>
+                    <p className="analytics-number">{analytics?.total_users || 0}</p>
+                    <p className="analytics-label">Total Users</p>
                   </div>
                 </div>
                 <div className="analytics-card">
-                  <span className="analytics-icon">⚡</span>
+                  <span className="analytics-icon">💬</span>
                   <div className="analytics-info">
-                    <p className="analytics-number">1.2s</p>
-                    <p className="analytics-label">Avg Response Time</p>
+                    <p className="analytics-number">{analytics?.pending_feedback || 0}</p>
+                    <p className="analytics-label">Pending Feedback</p>
                   </div>
                 </div>
               </div>
 
-              <h3>📈 Usage by Role</h3>
+              <h3>📈 User Breakdown</h3>
               <div className="usage-breakdown">
                 <div className="usage-bar">
                   <div className="usage-label">Students</div>
                   <div className="usage-progress">
-                    <div className="progress-fill student" style={{width: '65%'}}></div>
+                    <div className="progress-fill student" style={{width: `${(users.filter(u => u.role === 'student').length / Math.max(users.length, 1)) * 100}%`}}></div>
                   </div>
-                  <span className="usage-percent">65%</span>
+                  <span className="usage-percent">{users.filter(u => u.role === 'student').length}</span>
                 </div>
                 <div className="usage-bar">
                   <div className="usage-label">Teachers</div>
                   <div className="usage-progress">
-                    <div className="progress-fill teacher" style={{width: '28%'}}></div>
+                    <div className="progress-fill teacher" style={{width: `${(users.filter(u => u.role === 'teacher').length / Math.max(users.length, 1)) * 100}%`}}></div>
                   </div>
-                  <span className="usage-percent">28%</span>
+                  <span className="usage-percent">{users.filter(u => u.role === 'teacher').length}</span>
                 </div>
                 <div className="usage-bar">
                   <div className="usage-label">Admins</div>
                   <div className="usage-progress">
-                    <div className="progress-fill admin" style={{width: '7%'}}></div>
+                    <div className="progress-fill admin" style={{width: `${(users.filter(u => u.role === 'admin').length / Math.max(users.length, 1)) * 100}%`}}></div>
                   </div>
-                  <span className="usage-percent">7%</span>
+                  <span className="usage-percent">{users.filter(u => u.role === 'admin').length}</span>
                 </div>
               </div>
 
