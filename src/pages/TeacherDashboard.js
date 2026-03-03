@@ -5,6 +5,9 @@ import { authAPI, ragAPI, usersAPI, feedbackAPI, studentFeedbackAPI, analyticsAP
 import './TeacherDashboard.css';
 
 const TeacherDashboard = () => {
+  const AVATAR_PLACEHOLDER = '/images/avatar-placeholder.svg';
+  const LOGO_PLACEHOLDER = '/images/flavcoin.png';
+
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('rag-search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +45,18 @@ const TeacherDashboard = () => {
   
   // Search history
   const [searchHistory, setSearchHistory] = useState([]);
+
+  const getAvatarSrc = (avatar) => (avatar === 'female' ? '/images/female.png' : '/images/male.png');
+
+  const handleAvatarError = (event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = AVATAR_PLACEHOLDER;
+  };
+
+  const handleLogoError = (event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = LOGO_PLACEHOLDER;
+  };
 
   useEffect(() => {
     loadData();
@@ -182,7 +197,7 @@ const TeacherDashboard = () => {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <img src="/images/logo.png" alt="EduRag Logo" className="sidebar-logo" />
+          <img src="/images/logo.png" alt="EduRag Logo" className="sidebar-logo" onError={handleLogoError} />
           <h2>EduRag</h2>
         </div>
 
@@ -243,9 +258,10 @@ const TeacherDashboard = () => {
         <div className="sidebar-footer">
           <div className="user-profile">
             <img 
-              src={selectedAvatar === 'male' ? '/images/male.png' : '/images/female.png'}
+              src={getAvatarSrc(selectedAvatar)}
               alt={selectedAvatar}
               className="avatar-image"
+              onError={handleAvatarError}
             />
             <div className="user-info">
               <p className="user-name">{userName}</p>
@@ -289,14 +305,14 @@ const TeacherDashboard = () => {
                     className={`avatar-option ${selectedAvatar === 'male' ? 'selected' : ''}`}
                     onClick={() => setSelectedAvatar('male')}
                   >
-                    <img src="/images/male.png" alt="Male" className="modal-avatar-img" />
+                    <img src="/images/male.png" alt="Male" className="modal-avatar-img" onError={handleAvatarError} />
                     <p>Male</p>
                   </button>
                   <button 
                     className={`avatar-option ${selectedAvatar === 'female' ? 'selected' : ''}`}
                     onClick={() => setSelectedAvatar('female')}
                   >
-                    <img src="/images/female.png" alt="Female" className="modal-avatar-img" />
+                    <img src="/images/female.png" alt="Female" className="modal-avatar-img" onError={handleAvatarError} />
                     <p>Female</p>
                   </button>
                 </div>
@@ -528,9 +544,10 @@ const TeacherDashboard = () => {
                 {teachers.length > 0 ? teachers.map((teacher) => (
                   <div key={teacher.id} className="teacher-card">
                     <img 
-                      src={teacher.avatar === 'female' ? '/images/female.png' : '/images/male.png'}
+                      src={getAvatarSrc(teacher.avatar)}
                       alt={teacher.name}
                       className="teacher-avatar-img"
+                      onError={handleAvatarError}
                     />
                     <h3>{teacher.name}</h3>
                     <p className="teacher-subject">ID: {teacher.institution_id}</p>
@@ -638,9 +655,10 @@ const TeacherDashboard = () => {
               <div className="feedback-form">
                 <div className="sender-info">
                   <img 
-                    src={selectedAvatar === 'male' ? '/images/male.png' : '/images/female.png'}
+                    src={getAvatarSrc(selectedAvatar)}
                     alt="Your avatar"
                     className="sender-avatar"
+                    onError={handleAvatarError}
                   />
                   <div>
                     <p className="sender-name">{userName}</p>

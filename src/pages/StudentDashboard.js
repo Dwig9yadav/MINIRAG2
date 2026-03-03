@@ -5,6 +5,9 @@ import { authAPI, ragAPI, usersAPI, studentFeedbackAPI } from '../services/api';
 import './StudentDashboard.css';
 
 const StudentDashboard = () => {
+  const AVATAR_PLACEHOLDER = '/images/avatar-placeholder.svg';
+  const LOGO_PLACEHOLDER = '/images/flavcoin.png';
+
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('rag-search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +32,18 @@ const StudentDashboard = () => {
   // Feedback
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(true);
+
+  const getAvatarSrc = (avatar) => (avatar === 'female' ? '/images/female.png' : '/images/male.png');
+
+  const handleAvatarError = (event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = AVATAR_PLACEHOLDER;
+  };
+
+  const handleLogoError = (event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = LOGO_PLACEHOLDER;
+  };
 
   useEffect(() => {
     loadUserData();
@@ -110,7 +125,7 @@ const StudentDashboard = () => {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <img src="/images/logo.png" alt="EduRag Logo" className="sidebar-logo" />
+          <img src="/images/logo.png" alt="EduRag Logo" className="sidebar-logo" onError={handleLogoError} />
           <h2>EduRag</h2>
         </div>
 
@@ -151,9 +166,10 @@ const StudentDashboard = () => {
         <div className="sidebar-footer">
           <div className="user-profile">
             <img 
-              src={selectedAvatar === 'male' ? '/images/male.png' : '/images/female.png'}
+              src={getAvatarSrc(selectedAvatar)}
               alt={selectedAvatar}
               className="avatar-image"
+              onError={handleAvatarError}
             />
             <div className="user-info">
               <p className="user-name">{userName}</p>
@@ -197,14 +213,14 @@ const StudentDashboard = () => {
                     className={`avatar-option ${selectedAvatar === 'male' ? 'selected' : ''}`}
                     onClick={() => setSelectedAvatar('male')}
                   >
-                    <img src="/images/male.png" alt="Male" className="modal-avatar-img" />
+                    <img src="/images/male.png" alt="Male" className="modal-avatar-img" onError={handleAvatarError} />
                     <p>Male</p>
                   </button>
                   <button 
                     className={`avatar-option ${selectedAvatar === 'female' ? 'selected' : ''}`}
                     onClick={() => setSelectedAvatar('female')}
                   >
-                    <img src="/images/female.png" alt="Female" className="modal-avatar-img" />
+                    <img src="/images/female.png" alt="Female" className="modal-avatar-img" onError={handleAvatarError} />
                     <p>Female</p>
                   </button>
                 </div>
@@ -346,9 +362,10 @@ const StudentDashboard = () => {
                 {buddies.length > 0 ? buddies.map((buddy) => (
                   <div key={buddy.id} className="buddy-card">
                     <img 
-                      src={buddy.avatar === 'female' ? '/images/female.png' : '/images/male.png'}
+                      src={getAvatarSrc(buddy.avatar)}
                       alt={buddy.avatar || 'male'}
                       className="buddy-avatar-img"
+                      onError={handleAvatarError}
                     />
                     <h3>{buddy.name}</h3>
                     <p className="buddy-id">ID: {buddy.institution_id}</p>

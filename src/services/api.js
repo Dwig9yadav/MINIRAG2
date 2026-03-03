@@ -10,7 +10,46 @@ const getApiBaseUrl = () => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
-console.log('🚀 Using API:', API_BASE_URL); // Debug log
+const LOCAL_API_FALLBACK = 'http://127.0.0.1:8000/api';
+
+const isLocalhostFrontend = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+);
+
+const getApiCandidates = () => {
+    const candidates = [API_BASE_URL];
+    if (isLocalhostFrontend && API_BASE_URL !== LOCAL_API_FALLBACK) {
+        candidates.push(LOCAL_API_FALLBACK);
+    }
+    return candidates;
+};
+
+const parseResponseBody = async (response) => {
+    const contentType = response.headers.get('content-type') || '';
+    const text = await response.text();
+    const normalized = text.trim().toLowerCase();
+    const isLikelyHtml = contentType.includes('text/html') || normalized.startsWith('<!doctype') || normalized.startsWith('<html');
+
+    if (!text) {
+        return { data: null, isLikelyHtml };
+    }
+
+    if (contentType.includes('application/json')) {
+        try {
+            return { data: JSON.parse(text), isLikelyHtml };
+        } catch {
+            return { data: null, isLikelyHtml };
+        }
+    }
+
+    try {
+        return { data: JSON.parse(text), isLikelyHtml };
+    } catch {
+        return { data: text, isLikelyHtml };
+    }
+};
+
+console.log('🚀 API candidates:', getApiCandidates());
 
 // Token management
 const getToken = () => localStorage.getItem('edurag_token');
@@ -20,7 +59,13 @@ const removeToken = () => localStorage.removeItem('edurag_token');
 // Get user from localStorage
 const getUser = () => {
     const user = localStorage.getItem('edurag_user');
-    return user ? JSON.parse(user) : null;
+    if (!user) return null;
+    try {
+        return JSON.parse(user);
+    } catch {
+        removeUser();
+        return null;
+    }
 };
 const setUser = (user) => localStorage.setItem('edurag_user', JSON.stringify(user));
 const removeUser = () => localStorage.removeItem('edurag_user');
@@ -38,41 +83,47 @@ const apiFetch = async (endpoint, options = {}) => {
         headers['Authorization'] = `Bearer ${token}`;
     }
     
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
-    
-    // Handle 401 Unauthorized
-    if (response.status === 401) {
-        removeToken();
-        removeUser();
-        window.location.href = '/auth';
-        throw new Error('Session expired. Please login again.');
-    }
-    
-    // Safely parse JSON — handle empty or non-JSON response bodies
-    let data;
-    const contentType = response.headers.get('content-type') || '';
-    const text = await response.text();
-    if (text && contentType.includes('application/json')) {
+    const candidates = getApiCandidates();
+    let lastError = null;
+
+    for (let index = 0; index < candidates.length; index++) {
+        const baseUrl = candidates[index];
+        const isLastCandidate = index === candidates.length - 1;
+
         try {
-            data = JSON.parse(text);
-        } catch {
-            if (!response.ok) throw new Error(`Server error (${response.status})`);
-            return text;
+            const response = await fetch(`${baseUrl}${endpoint}`, {
+                ...options,
+                headers,
+            });
+
+            // Handle 401 Unauthorized
+            if (response.status === 401) {
+                removeToken();
+                removeUser();
+                window.location.href = '/auth';
+                throw new Error('Session expired. Please login again.');
+            }
+
+            const { data, isLikelyHtml } = await parseResponseBody(response);
+
+            // If HTML is returned from /api on localhost, try local FastAPI directly
+            if (isLikelyHtml && !isLastCandidate) {
+                continue;
+            }
+
+            if (!response.ok) {
+                const detail = data && typeof data === 'object' ? data.detail : null;
+                throw new Error(detail || `API request failed (${response.status})`);
+            }
+
+            return data;
+        } catch (error) {
+            lastError = error;
+            if (!isLastCandidate) continue;
         }
-    } else if (text) {
-        try { data = JSON.parse(text); } catch { data = null; }
-    } else {
-        data = null;
     }
-    
-    if (!response.ok) {
-        throw new Error((data && data.detail) || `API request failed (${response.status})`);
-    }
-    
-    return data;
+
+    throw lastError || new Error('API request failed. Backend may be unavailable.');
 };
 
 // ========================================
@@ -80,28 +131,16 @@ const apiFetch = async (endpoint, options = {}) => {
 // ========================================
 export const authAPI = {
     login: async (institutionId, password) => {
-        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        const data = await apiFetch('/auth/login', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
                 institution_id: institutionId,
                 password: password
             }),
         });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-            // Handle FastAPI validation errors (array of objects)
-            let errorMsg = 'Login failed';
-            if (typeof data.detail === 'string') {
-                errorMsg = data.detail;
-            } else if (Array.isArray(data.detail)) {
-                errorMsg = data.detail.map(e => e.msg).join(', ');
-            }
-            throw new Error(errorMsg);
+
+        if (!data || !data.access_token || !data.user) {
+            throw new Error('Login failed: Invalid server response');
         }
         
         // Store token and user data

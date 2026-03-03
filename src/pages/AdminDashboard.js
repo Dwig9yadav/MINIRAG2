@@ -5,6 +5,9 @@ import { authAPI, usersAPI, feedbackAPI, studentFeedbackAPI, analyticsAPI, ragAP
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
+  const AVATAR_PLACEHOLDER = '/images/avatar-placeholder.svg';
+  const LOGO_PLACEHOLDER = '/images/flavcoin.png';
+
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('users');
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,6 +38,18 @@ const AdminDashboard = () => {
   const [pdfs, setPdfs] = useState([]);
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [indexingPDF, setIndexingPDF] = useState(null);
+
+  const getAvatarSrc = (avatar) => (avatar === 'female' ? '/images/female.png' : '/images/male.png');
+
+  const handleAvatarError = (event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = AVATAR_PLACEHOLDER;
+  };
+
+  const handleLogoError = (event) => {
+    event.currentTarget.onerror = null;
+    event.currentTarget.src = LOGO_PLACEHOLDER;
+  };
 
   useEffect(() => {
     loadData();
@@ -200,7 +215,7 @@ const AdminDashboard = () => {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <img src="/images/logo.png" alt="EduRag Logo" className="sidebar-logo" />
+          <img src="/images/logo.png" alt="EduRag Logo" className="sidebar-logo" onError={handleLogoError} />
           <h2>EduRag</h2>
         </div>
 
@@ -261,9 +276,10 @@ const AdminDashboard = () => {
         <div className="sidebar-footer">
           <div className="user-profile">
             <img 
-              src={selectedAvatar === 'male' ? '/images/male.png' : '/images/female.png'}
+              src={getAvatarSrc(selectedAvatar)}
               alt={selectedAvatar}
               className="avatar-image"
+              onError={handleAvatarError}
             />
             <div className="user-info">
               <p className="user-name">{userName}</p>
@@ -307,14 +323,14 @@ const AdminDashboard = () => {
                     className={`avatar-option ${selectedAvatar === 'male' ? 'selected' : ''}`}
                     onClick={() => setSelectedAvatar('male')}
                   >
-                    <img src="/images/male.png" alt="Male" className="modal-avatar-img" />
+                    <img src="/images/male.png" alt="Male" className="modal-avatar-img" onError={handleAvatarError} />
                     <p>Male</p>
                   </button>
                   <button 
                     className={`avatar-option ${selectedAvatar === 'female' ? 'selected' : ''}`}
                     onClick={() => setSelectedAvatar('female')}
                   >
-                    <img src="/images/female.png" alt="Female" className="modal-avatar-img" />
+                    <img src="/images/female.png" alt="Female" className="modal-avatar-img" onError={handleAvatarError} />
                     <p>Female</p>
                   </button>
                 </div>
@@ -399,9 +415,10 @@ const AdminDashboard = () => {
                   <div key={user.id} className="table-row">
                     <div className="user-cell">
                       <img 
-                        src={user.avatar === 'female' ? '/images/female.png' : '/images/male.png'}
+                        src={getAvatarSrc(user.avatar)}
                         alt={user.name}
                         className="table-avatar"
+                        onError={handleAvatarError}
                       />
                       <span>{user.name}</span>
                     </div>
@@ -462,9 +479,10 @@ const AdminDashboard = () => {
                   <div key={feedback.id} className="feedback-card">
                     <div className="feedback-sender">
                       <img 
-                        src={feedback.sender_avatar === 'female' ? '/images/female.png' : '/images/male.png'}
+                        src={getAvatarSrc(feedback.sender_avatar)}
                         alt={feedback.sender_name}
                         className="feedback-avatar"
+                        onError={handleAvatarError}
                       />
                       <div className="sender-details">
                         <p className="sender-name">{feedback.sender_name}</p>
