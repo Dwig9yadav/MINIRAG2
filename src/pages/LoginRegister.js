@@ -13,6 +13,7 @@ const LoginRegister = () => {
     name: '',
     institutionId: '',
     email: '',
+    confirmEmail: '',
     password: '',
     confirmPassword: ''
   });
@@ -45,6 +46,11 @@ const LoginRegister = () => {
           navigate('/dashboard');
         }
       } else {
+        if (formData.email !== formData.confirmEmail) {
+          setError('Email addresses do not match');
+          setLoading(false);
+          return;
+        }
         if (formData.password !== formData.confirmPassword) {
           setError('Passwords do not match');
           setLoading(false);
@@ -85,6 +91,7 @@ const LoginRegister = () => {
       name: '',
       institutionId: '',
       email: '',
+      confirmEmail: '',
       password: '',
       confirmPassword: ''
     });
@@ -157,6 +164,22 @@ const LoginRegister = () => {
                   name="email"
                   placeholder="Enter your Gmail address"
                   value={formData.email}
+                  onChange={handleChange}
+                  required={!isLogin}
+                  disabled={loading}
+                />
+              </div>
+            )}
+
+            {!isLogin && (
+              <div className="form-group">
+                <label htmlFor="confirmEmail">Confirm Email</label>
+                <input
+                  type="email"
+                  id="confirmEmail"
+                  name="confirmEmail"
+                  placeholder="Re-enter your Gmail address"
+                  value={formData.confirmEmail}
                   onChange={handleChange}
                   required={!isLogin}
                   disabled={loading}
