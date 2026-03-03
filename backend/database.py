@@ -28,10 +28,10 @@ def init_supabase():
 
     if url and service_key:
         try:
-            from supabase import create_client
+            from supabase_lite import create_client
             supabase_admin = create_client(url, service_key)
             supabase = create_client(url, key) if key else supabase_admin
-            print("✅ Supabase connected")
+            print("✅ Supabase connected (lite)")
         except Exception as e:
             print(f"⚠️  Supabase init error: {e}")
     else:
