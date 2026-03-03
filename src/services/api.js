@@ -130,7 +130,7 @@ export const usersAPI = {
     
     update: async (userId, updates) => {
         return apiFetch(`/users/${userId}`, {
-            method: 'PUT',
+            method: 'PATCH',
             body: JSON.stringify(updates),
         });
     },

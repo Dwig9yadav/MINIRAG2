@@ -8,6 +8,7 @@ This keeps the Vercel serverless function well under the 250 MB limit.
 
 import httpx
 import json
+import re
 from urllib.parse import quote as urlquote
 
 _TIMEOUT = 30.0
@@ -21,6 +22,19 @@ class _Response:
         self.data = data
 
 
+def _clean_select(columns: str) -> str:
+    """Strip whitespace around commas in a select string while preserving
+    PostgREST relationship syntax like ``users!sender_id(name, avatar)``."""
+    # Don't touch the inside of parentheses (embedded resources)
+    parts = re.split(r"(\([^)]*\))", columns)
+    cleaned = []
+    for i, part in enumerate(parts):
+        if i % 2 == 0:  # outside parentheses
+            part = ",".join(seg.strip() for seg in part.split(","))
+        cleaned.append(part)
+    return "".join(cleaned)
+
+
 # ---- PostgREST query builder -----------------------------------------------
 
 class _QueryBuilder:
@@ -28,7 +42,7 @@ class _QueryBuilder:
 
     def __init__(self, url: str, headers: dict, table: str):
         self._base = f"{url}/rest/v1/{urlquote(table)}"
-        self._headers = {**headers, "Content-Type": "application/json"}
+        self._headers = {**headers}
         self._params: list[tuple[str, str]] = []
         self._method = "GET"
         self._body = None
@@ -38,13 +52,20 @@ class _QueryBuilder:
 
     def select(self, columns: str = "*"):
         self._method = "GET"
-        self._params.append(("select", columns))
+        self._params.append(("select", _clean_select(columns)))
         return self
 
     def insert(self, data: dict):
         self._method = "POST"
         self._body = data
         self._prefer.append("return=representation")
+        return self
+
+    def upsert(self, data):
+        self._method = "POST"
+        self._body = data
+        self._prefer.append("return=representation")
+        self._prefer.append("resolution=merge-duplicates")
         return self
 
     def update(self, data: dict):
@@ -68,16 +89,32 @@ class _QueryBuilder:
         self._params.append((column, f"neq.{value}"))
         return self
 
+    def gt(self, column: str, value):
+        self._params.append((column, f"gt.{value}"))
+        return self
+
     def gte(self, column: str, value):
         self._params.append((column, f"gte.{value}"))
+        return self
+
+    def lt(self, column: str, value):
+        self._params.append((column, f"lt.{value}"))
         return self
 
     def lte(self, column: str, value):
         self._params.append((column, f"lte.{value}"))
         return self
 
+    def like(self, column: str, pattern: str):
+        self._params.append((column, f"like.{pattern}"))
+        return self
+
     def ilike(self, column: str, pattern: str):
         self._params.append((column, f"ilike.{pattern}"))
+        return self
+
+    def is_(self, column: str, value):
+        self._params.append((column, f"is.{value}"))
         return self
 
     def in_(self, column: str, values: list):
@@ -85,21 +122,44 @@ class _QueryBuilder:
         self._params.append((column, f"in.({formatted})"))
         return self
 
+    def contains(self, column: str, value):
+        self._params.append((column, f"cs.{json.dumps(value)}"))
+        return self
+
+    def contained_by(self, column: str, value):
+        self._params.append((column, f"cd.{json.dumps(value)}"))
+        return self
+
     # --- modifiers ---
 
-    def order(self, column: str, *, desc: bool = False):
+    def order(self, column: str, *, desc: bool = False, nullsfirst: bool = False, nullslast: bool = False):
         direction = "desc" if desc else "asc"
-        self._params.append(("order", f"{column}.{direction}"))
+        mod = f"{column}.{direction}"
+        if nullsfirst:
+            mod += ".nullsfirst"
+        elif nullslast:
+            mod += ".nullslast"
+        self._params.append(("order", mod))
         return self
 
     def limit(self, n: int):
         self._params.append(("limit", str(n)))
         return self
 
+    def offset(self, n: int):
+        self._params.append(("offset", str(n)))
+        return self
+
+    def range(self, start: int, end: int):
+        self._headers["Range"] = f"{start}-{end}"
+        self._headers["Range-Unit"] = "items"
+        return self
+
     # --- execute ---
 
     def execute(self) -> _Response:
-        headers = {**self._headers}
+        headers = {**self._headers, "Content-Type": "application/json",
+                   "Accept": "application/json"}
         if self._prefer:
             headers["Prefer"] = ", ".join(self._prefer)
 
@@ -146,7 +206,13 @@ class _BucketClient:
             raise RuntimeError(f"Storage download error {r.status_code}: {r.text}")
         return r.content
 
-    def upload(self, path: str, data: bytes, file_options: dict | None = None):
+    def upload(self, path: str, file: bytes = None, data: bytes = None,
+               file_options: dict | None = None):
+        """Upload bytes to storage.  Accepts *file* or *data* as the payload
+        (the official SDK uses ``file``; our earlier version used ``data``)."""
+        payload = file if file is not None else data
+        if payload is None:
+            raise ValueError("upload() requires file or data bytes")
         headers = {**self._headers}
         content_type = "application/octet-stream"
         if file_options and "content-type" in file_options:
@@ -155,7 +221,7 @@ class _BucketClient:
         r = httpx.post(
             f"{self._url}/object/{self._bucket}/{path}",
             headers=headers,
-            content=data,
+            content=payload,
             timeout=60.0,
         )
         if r.status_code >= 400:
@@ -220,6 +286,8 @@ class SupabaseLiteClient:
         self._headers = {
             "apikey": key,
             "Authorization": f"Bearer {key}",
+            "Accept-Profile": "public",
+            "Content-Profile": "public",
         }
         self.storage = _StorageClient(self._url, self._headers)
 
