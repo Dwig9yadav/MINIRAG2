@@ -60,83 +60,23 @@ def init_supabase():
             print(f"⚠️ Supabase error: {e}")
 
 def init_database():
-    """Initialize SQLite database with tables and demo data"""
+    """Initialize SQLite database with tables"""
     from sqlite_models import Base, User
-    from passlib.context import CryptContext
     
     # Create all tables
     Base.metadata.create_all(bind=engine)
     print(f"✅ SQLite database created at: {DATABASE_PATH}")
     
-    # Add demo users if not exist
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    
-    with get_db_session() as db:
-        # Check if demo users exist
-        existing = db.query(User).filter(User.institution_id == "24155012345").first()
-        if not existing:
-            demo_users = [
-                User(
-                    name="Demo Student",
-                    institution_id="24155012345",
-                    password_hash=pwd_context.hash("demo123"),
-                    role="student",
-                    avatar="male",
-                    status="active"
-                ),
-                User(
-                    name="Dr. Smith",
-                    institution_id="TCH001",
-                    password_hash=pwd_context.hash("teacher123"),
-                    role="teacher",
-                    avatar="male",
-                    status="active"
-                ),
-                User(
-                    name="Admin",
-                    institution_id="ADMIN001",
-                    password_hash=pwd_context.hash("admin123"),
-                    role="admin",
-                    avatar="male",
-                    status="active"
-                ),
-                User(
-                    name="Rahul Kumar",
-                    institution_id="2415501001",
-                    password_hash=pwd_context.hash("student123"),
-                    role="student",
-                    avatar="male",
-                    status="active"
-                ),
-                User(
-                    name="Priya Singh",
-                    institution_id="2415501002",
-                    password_hash=pwd_context.hash("student123"),
-                    role="student",
-                    avatar="female",
-                    status="active"
-                ),
-                User(
-                    name="Dr. Rajesh Kumar",
-                    institution_id="TCH002",
-                    password_hash=pwd_context.hash("teacher123"),
-                    role="teacher",
-                    avatar="male",
-                    status="active"
-                ),
-                User(
-                    name="Prof. Meera Joshi",
-                    institution_id="TCH003",
-                    password_hash=pwd_context.hash("teacher123"),
-                    role="teacher",
-                    avatar="female",
-                    status="active"
-                ),
-            ]
-            db.add_all(demo_users)
-            print("✅ Demo users added to database")
+    # Check if ANY users exist - if so, skip adding demo data
+    db = SessionLocal()
+    try:
+        user_count = db.query(User).count()
+        if user_count > 0:
+            print(f"✅ Database has {user_count} users")
         else:
-            print("✅ Database already has users")
+            print("ℹ️ Database is empty. Add users via the register endpoint.")
+    finally:
+        db.close()
 
 # Initialize on import
 init_supabase()
