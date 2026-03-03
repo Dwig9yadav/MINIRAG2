@@ -9,11 +9,12 @@ const getApiBaseUrl = () => {
     
     // If running in GitHub Codespaces, construct the backend URL
     if (window.location.hostname.includes('.app.github.dev')) {
-        // Extract the codespace name and construct backend URL
         const hostname = window.location.hostname;
-        // Replace port 3000 with 8000 in the URL
-        const backendHost = hostname.replace('-3000.', '-8000.');
-        return `https://${backendHost}/api`;
+        // Replace any port number with 8000 (e.g., -3000. or -5173. -> -8000.)
+        const backendHost = hostname.replace(/-\d+\.app\.github\.dev/, '-8000.app.github.dev');
+        const apiUrl = `https://${backendHost}/api`;
+        console.log('🔗 API URL:', apiUrl); // Debug log
+        return apiUrl;
     }
     
     // Default to localhost for local development
@@ -21,6 +22,7 @@ const getApiBaseUrl = () => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+console.log('🚀 Using API:', API_BASE_URL); // Debug log
 
 // Token management
 const getToken = () => localStorage.getItem('edurag_token');
@@ -75,22 +77,28 @@ const apiFetch = async (endpoint, options = {}) => {
 // ========================================
 export const authAPI = {
     login: async (institutionId, password) => {
-        const formData = new URLSearchParams();
-        formData.append('username', institutionId);
-        formData.append('password', password);
-        
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
             },
-            body: formData,
+            body: JSON.stringify({
+                institution_id: institutionId,
+                password: password
+            }),
         });
         
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.detail || 'Login failed');
+            // Handle FastAPI validation errors (array of objects)
+            let errorMsg = 'Login failed';
+            if (typeof data.detail === 'string') {
+                errorMsg = data.detail;
+            } else if (Array.isArray(data.detail)) {
+                errorMsg = data.detail.map(e => e.msg).join(', ');
+            }
+            throw new Error(errorMsg);
         }
         
         // Store token and user data

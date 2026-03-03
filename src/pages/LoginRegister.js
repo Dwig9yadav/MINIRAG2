@@ -61,7 +61,8 @@ const LoginRegister = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.message || 'Authentication failed');
+      const errorMsg = typeof err.message === 'string' ? err.message : 'Authentication failed';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
