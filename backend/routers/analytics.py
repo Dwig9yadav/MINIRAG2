@@ -1,169 +1,136 @@
 """
-Analytics Router - System Statistics and Insights
+Analytics Router — all queries hit Supabase.
 """
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
-from typing import List
 from datetime import datetime, timedelta
 
-from database import get_db
-from sqlite_models import User, SearchHistory, PDF, Feedback
+from database import get_supabase
 from routers.auth import get_current_user
 
 router = APIRouter()
 
+
 @router.get("/summary")
-async def get_system_summary(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get system summary statistics"""
+async def get_system_summary(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Only admins can view analytics")
-    
-    total_users = db.query(func.count(User.id)).scalar() or 0
-    total_searches = db.query(func.count(SearchHistory.id)).scalar() or 0
-    total_pdfs = db.query(func.count(PDF.id)).scalar() or 0
-    indexed_pdfs = db.query(func.count(PDF.id)).filter(PDF.status == "indexed").scalar() or 0
-    
-    # Today's stats
-    today = datetime.utcnow().date()
-    today_searches = db.query(func.count(SearchHistory.id)).filter(
-        func.date(SearchHistory.created_at) == today
-    ).scalar() or 0
-    
-    # Pending feedback
-    pending_feedback = db.query(func.count(Feedback.id)).filter(Feedback.status == "pending").scalar() or 0
-    
-    return {
-        "total_users": total_users,
-        "total_searches": total_searches,
-        "total_pdfs": total_pdfs,
-        "indexed_pdfs": indexed_pdfs,
-        "today_searches": today_searches,
-        "pending_feedback": pending_feedback,
-        "system_health": "healthy"
-    }
+    try:
+        sb = get_supabase()
+        users = sb.table("users").select("id").execute().data or []
+        searches = sb.table("search_history").select("id").execute().data or []
+
+        # PDFs now in Supabase too
+        all_pdfs = sb.table("pdfs").select("id, status").execute().data or []
+        total_pdfs = len(all_pdfs)
+        indexed_pdfs = sum(1 for p in all_pdfs if p.get("status") == "indexed")
+
+        today = datetime.utcnow().date().isoformat()
+        today_searches = sb.table("search_history").select("id").gte("created_at", today).execute().data or []
+
+        pending_fb = sb.table("feedback").select("id").eq("status", "pending").execute().data or []
+
+        return {
+            "total_users": len(users),
+            "total_searches": len(searches),
+            "total_pdfs": total_pdfs,
+            "indexed_pdfs": indexed_pdfs,
+            "today_searches": len(today_searches),
+            "pending_feedback": len(pending_fb),
+            "system_health": "healthy",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/usage-by-role")
-async def get_usage_by_role(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get search usage breakdown by role"""
+async def get_usage_by_role(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Only admins can view analytics")
-    
-    # Join search history with users and group by role
-    results = db.query(
-        User.role,
-        func.count(SearchHistory.id).label('count')
-    ).join(SearchHistory, User.id == SearchHistory.user_id).group_by(User.role).all()
-    
-    if results:
-        total = sum(r.count for r in results)
+    try:
+        sb = get_supabase()
+        sh = sb.table("search_history").select("user_id").execute().data or []
+        if not sh:
+            return []
+        user_ids = list({s["user_id"] for s in sh if s.get("user_id")})
+        users_resp = sb.table("users").select("id, role").in_("id", user_ids).execute()
+        id_to_role = {u["id"]: u["role"] for u in (users_resp.data or [])}
+
+        from collections import Counter
+        counts = Counter(id_to_role.get(s["user_id"], "unknown") for s in sh if s.get("user_id"))
+        total = sum(counts.values())
         return [
-            {
-                "role": r.role,
-                "count": r.count,
-                "percentage": round((r.count / total) * 100, 1) if total > 0 else 0
-            }
-            for r in results
+            {"role": role, "count": cnt, "percentage": round(cnt / total * 100, 1)}
+            for role, cnt in counts.most_common()
         ]
-    
-    return []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/language-usage")
-async def get_language_usage(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get search language usage"""
+async def get_language_usage(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Only admins can view analytics")
-    
-    results = db.query(
-        SearchHistory.language,
-        func.count(SearchHistory.id).label('count')
-    ).group_by(SearchHistory.language).all()
-    
-    if results:
-        return [{"language": r.language or "english", "count": r.count} for r in results]
-    
-    return []
+    try:
+        sb = get_supabase()
+        rows = sb.table("search_history").select("language").execute().data or []
+        from collections import Counter
+        counts = Counter(r.get("language") or "english" for r in rows)
+        return [{"language": lang, "count": cnt} for lang, cnt in counts.most_common()]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/daily-queries")
-async def get_daily_queries(
-    days: int = 30,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get daily query counts"""
+async def get_daily_queries(days: int = 30, current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Only admins can view analytics")
-    
-    start_date = datetime.utcnow() - timedelta(days=days)
-    
-    results = db.query(
-        func.date(SearchHistory.created_at).label('date'),
-        func.count(SearchHistory.id).label('count')
-    ).filter(
-        SearchHistory.created_at >= start_date
-    ).group_by(func.date(SearchHistory.created_at)).order_by(func.date(SearchHistory.created_at)).all()
-    
-    if results:
-        return [{"date": str(r.date), "count": r.count} for r in results]
-    
-    return []
+    try:
+        sb = get_supabase()
+        start = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        rows = sb.table("search_history").select("created_at").gte("created_at", start).execute().data or []
+        from collections import Counter
+        counts = Counter(r["created_at"][:10] for r in rows)
+        return [{"date": d, "count": c} for d, c in sorted(counts.items())]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/student-insights")
-async def get_student_insights(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get student learning insights (for teachers)"""
+async def get_student_insights(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in ["admin", "teacher"]:
         raise HTTPException(status_code=403, detail="Only teachers and admins can view insights")
-    
-    # Count students
-    total_students = db.query(func.count(User.id)).filter(User.role == "student").scalar() or 0
-    
-    # Get students with most searches (active learners)
-    active = db.query(
-        User.name,
-        User.institution_id,
-        func.count(SearchHistory.id).label('searches')
-    ).join(SearchHistory, User.id == SearchHistory.user_id).filter(
-        User.role == "student"
-    ).group_by(User.id).order_by(func.count(SearchHistory.id).desc()).limit(5).all()
-    
-    active_learners = [
-        {"name": a.name, "institution_id": a.institution_id, "searches": a.searches}
-        for a in active
-    ] if active else []
-    
-    return {
-        "total_students": total_students,
-        "active_learners": active_learners,
-        "avg_queries_per_student": round(
-            db.query(func.count(SearchHistory.id)).scalar() / max(total_students, 1), 1
-        )
-    }
+    try:
+        sb = get_supabase()
+        students = sb.table("users").select("id, name, institution_id").eq("role", "student").execute().data or []
+        total_students = len(students)
+
+        sh = sb.table("search_history").select("user_id").execute().data or []
+        student_ids = {s["id"] for s in students}
+        from collections import Counter
+        student_search_counts = Counter(s["user_id"] for s in sh if s.get("user_id") in student_ids)
+
+        id_map = {s["id"]: s for s in students}
+        active_learners = [
+            {"name": id_map[uid]["name"], "institution_id": id_map[uid]["institution_id"], "searches": cnt}
+            for uid, cnt in student_search_counts.most_common(5) if uid in id_map
+        ]
+        total_student_searches = sum(student_search_counts.values())
+        return {
+            "total_students": total_students,
+            "active_learners": active_learners,
+            "avg_queries_per_student": round(total_student_searches / max(total_students, 1), 1),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/top-topics")
-async def get_top_topics(
-    limit: int = 10,
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get most searched topics"""
-    results = db.query(
-        SearchHistory.query,
-        func.count(SearchHistory.id).label('count')
-    ).group_by(SearchHistory.query).order_by(func.count(SearchHistory.id).desc()).limit(limit).all()
-    
-    if results:
-        return [{"topic": r.query, "count": r.count, "trend": "stable"} for r in results]
-    
-    return []
+async def get_top_topics(limit: int = 10, current_user: dict = Depends(get_current_user)):
+    try:
+        sb = get_supabase()
+        rows = sb.table("search_history").select("query").execute().data or []
+        from collections import Counter
+        counts = Counter(r["query"] for r in rows if r.get("query"))
+        return [{"topic": q, "count": c, "trend": "stable"} for q, c in counts.most_common(limit)]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

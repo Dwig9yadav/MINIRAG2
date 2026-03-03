@@ -12,6 +12,7 @@ const LoginRegister = () => {
   const [formData, setFormData] = useState({
     name: '',
     institutionId: '',
+    email: '',
     password: '',
     confirmPassword: ''
   });
@@ -50,15 +51,24 @@ const LoginRegister = () => {
           return;
         }
         
-        await authAPI.register({
+        const response = await authAPI.register({
           name: formData.name,
           institution_id: formData.institutionId,
+          email: formData.email,
           password: formData.password,
           avatar: 'male',
           role: 'student'
         });
-        
-        navigate('/dashboard');
+
+        // Auto-login after register
+        const user = response.user;
+        if (user.role === 'admin') {
+          navigate('/admin-dashboard');
+        } else if (user.role === 'teacher') {
+          navigate('/teacher-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       const errorMsg = typeof err.message === 'string' ? err.message : 'Authentication failed';
@@ -74,6 +84,7 @@ const LoginRegister = () => {
     setFormData({
       name: '',
       institutionId: '',
+      email: '',
       password: '',
       confirmPassword: ''
     });
@@ -137,6 +148,22 @@ const LoginRegister = () => {
               />
             </div>
 
+            {!isLogin && (
+              <div className="form-group">
+                <label htmlFor="email">Email (Gmail)</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  placeholder="Enter your Gmail address"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required={!isLogin}
+                  disabled={loading}
+                />
+              </div>
+            )}
+
             <div className="form-group">
               <label htmlFor="password">Password</label>
               <input
@@ -152,23 +179,19 @@ const LoginRegister = () => {
             </div>
 
             {!isLogin && (
-              <>
-                <div className="form-group">
-                  <label htmlFor="confirmPassword">Confirm Password</label>
-                  <input
-                    type="password"
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required={!isLogin}
-                    disabled={loading}
-                  />
-                </div>
-
-                {/* Role selector removed - students default to student role */}
-              </>
+              <div className="form-group">
+                <label htmlFor="confirmPassword">Confirm Password</label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required={!isLogin}
+                  disabled={loading}
+                />
+              </div>
             )}
 
             <button type="submit" className="submit-btn" disabled={loading}>

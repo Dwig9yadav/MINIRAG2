@@ -29,6 +29,7 @@ class FeedbackStatus(str, Enum):
 class UserRegister(BaseModel):
     name: str
     institution_id: str
+    email: Optional[str] = None
     password: str
     avatar: str = "male"
     role: UserRole = UserRole.student
@@ -41,12 +42,15 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: dict
+    requires_verification: bool = False
+    message: Optional[str] = None
 
 # User Models
 class UserBase(BaseModel):
     id: Optional[int] = None
     name: str
     institution_id: str
+    email: Optional[str] = None
     role: UserRole
     avatar: str
     status: str = "active"
@@ -62,6 +66,7 @@ class UserResponse(BaseModel):
     id: int
     name: str
     institution_id: str
+    email: Optional[str] = None
     role: UserRole
     avatar: str
     status: str

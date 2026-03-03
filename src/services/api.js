@@ -2,23 +2,11 @@
 
 // Dynamically determine API URL based on environment
 const getApiBaseUrl = () => {
-    // If environment variable is set, use it
     if (process.env.REACT_APP_API_URL) {
         return process.env.REACT_APP_API_URL;
     }
-    
-    // If running in GitHub Codespaces, construct the backend URL
-    if (window.location.hostname.includes('.app.github.dev')) {
-        const hostname = window.location.hostname;
-        // Replace any port number with 8000 (e.g., -3000. or -5173. -> -8000.)
-        const backendHost = hostname.replace(/-\d+\.app\.github\.dev/, '-8000.app.github.dev');
-        const apiUrl = `https://${backendHost}/api`;
-        console.log('🔗 API URL:', apiUrl); // Debug log
-        return apiUrl;
-    }
-    
-    // Default to localhost for local development
-    return 'http://localhost:8000/api';
+
+    return '/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
