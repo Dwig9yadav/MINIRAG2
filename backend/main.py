@@ -13,7 +13,7 @@ from pathlib import Path
 load_dotenv()
 
 # Import routers
-from routers import auth, users, feedback, rag, analytics
+from routers import auth, users, feedback, student_feedback, rag, analytics
 
 # Create FastAPI app
 app = FastAPI(
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
+app.include_router(student_feedback.router, prefix="/api/student-feedback", tags=["Student Feedback"])
 app.include_router(rag.router, prefix="/api/rag", tags=["RAG Search"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 

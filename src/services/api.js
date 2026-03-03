@@ -51,10 +51,25 @@ const apiFetch = async (endpoint, options = {}) => {
         throw new Error('Session expired. Please login again.');
     }
     
-    const data = await response.json();
+    // Safely parse JSON — handle empty or non-JSON response bodies
+    let data;
+    const contentType = response.headers.get('content-type') || '';
+    const text = await response.text();
+    if (text && contentType.includes('application/json')) {
+        try {
+            data = JSON.parse(text);
+        } catch {
+            if (!response.ok) throw new Error(`Server error (${response.status})`);
+            return text;
+        }
+    } else if (text) {
+        try { data = JSON.parse(text); } catch { data = null; }
+    } else {
+        data = null;
+    }
     
     if (!response.ok) {
-        throw new Error(data.detail || 'API request failed');
+        throw new Error((data && data.detail) || `API request failed (${response.status})`);
     }
     
     return data;
@@ -117,7 +132,7 @@ export const authAPI = {
 // ========================================
 export const usersAPI = {
     getAll: async (skip = 0, limit = 100) => {
-        return apiFetch(`/users/?skip=${skip}&limit=${limit}`);
+        return apiFetch(`/users?skip=${skip}&limit=${limit}`);
     },
     
     getById: async (userId) => {
@@ -228,7 +243,7 @@ export const ragAPI = {
 // ========================================
 export const feedbackAPI = {
     create: async (feedbackData) => {
-        return apiFetch('/feedback/', {
+        return apiFetch('/feedback', {
             method: 'POST',
             body: JSON.stringify(feedbackData),
         });
@@ -239,7 +254,7 @@ export const feedbackAPI = {
     },
     
     getAll: async (status = null) => {
-        const url = status ? `/feedback/?status=${status}` : '/feedback/';
+        const url = status ? `/feedback?status=${status}` : '/feedback';
         return apiFetch(url);
     },
     
