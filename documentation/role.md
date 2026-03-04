@@ -1,0 +1,21 @@
+# Team Roles — Project Team
+
+This document captures the core team roles, responsibilities, key skills and typical weekly availability. Use this as the authoritative team reference in the project documentation.
+
+| Member | Role | Responsibilities | Key skills | Availability |
+|---|---|---|---:|---:|
+| Captain (you) | Project Lead & System Architect | Project vision and planning; architecture design; backend–frontend integration; security oversight; release sign-off and final delivery | System design, FastAPI, RAG concepts, Cloud architecture, Leadership | 12 hrs/wk |
+| Harshita MAAM | Frontend & UX Engineer | UI/UX design; implement role-based dashboards (Student/Teacher/Admin); frontend logic and API integration; accessibility and usability testing | HTML, CSS, JavaScript/React, UI/UX, API integration | 10 hrs/wk |
+| Me (Backend & AI) | Backend & AI Engineer | Backend APIs; authentication & RBAC; data handling and DB schema; integrate RAG pipeline and embedding workflows; AI safety & model prompts | Python, FastAPI, SQL, AI/RAG concepts | 12 hrs/wk |
+
+| We all 3 | QA & Documentation (shared) | Create test plans, end-to-end tests, and maintain project docs; run release QA and write user-facing guides | Playwright (E2E), writing, test planning | 8 hrs/wk (shared) |
+
+How to use
+
+- Keep this file updated when role assignments or availability change.
+- For tasks and sprint assignments, link to `TEAM.md` or your project tracker and reference the role owner.
+
+Contact & updates
+
+- Add contact emails or Slack handles here if you want this document to serve as a contact roster.
+- To update: edit `documentation/role.md` and open a PR with the change.
