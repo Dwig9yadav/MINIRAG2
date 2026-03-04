@@ -303,16 +303,27 @@ GEMINI_API_KEY=your-gemini-api-key
 
 ---
 
-## 👥 Author
+# 👥 Project Team
+🧑‍💻 Team Leader
 
-**KAVYA-29-ai**
-- GitHub: [@KAVYA-29-ai](https://github.com/KAVYA-29-ai)
-- GitHub: [@KAVYA-29-ai](https://github.com/khushisara1)
-- GitHub: [@KAVYA-29-ai](https://github.com/HarshitaShakya)
-- Repository: [MINIRAG2](https://github.com/KAVYA-29-ai/MINIRAG2)
+Khushi Sara
 
+GitHub: https://github.com/khushisara1
 
----
+👩‍💻 Contributors
+
+Kavya Rajput
+
+GitHub: https://github.com/KAVYA-29-ai
+
+Harshita Shakya
+
+GitHub: https://github.com/HarshitaShakya
+
+📦 Repository
+
+MINIRAG2
+https://github.com/KAVYA-29-ai/MINIRAG2
 
 <div align="center">
 
