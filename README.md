@@ -307,13 +307,10 @@ GEMINI_API_KEY=your-gemini-api-key
 
 **KAVYA-29-ai**
 - GitHub: [@KAVYA-29-ai](https://github.com/KAVYA-29-ai)
+- GitHub: [@KAVYA-29-ai](https://github.com/khushisara1)
+- GitHub: [@KAVYA-29-ai](https://github.com/HarshitaShakya)
 - Repository: [MINIRAG2](https://github.com/KAVYA-29-ai/MINIRAG2)
 
----
-
-## 📄 License
-
-This project is licensed under the **MIT License**.
 
 ---
 
