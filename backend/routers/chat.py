@@ -1,4 +1,3 @@
-```python
 @router.delete("/messages/{message_id}")
 async def delete_message(message_id: int, current_user: dict = Depends(get_current_user)):
     """
@@ -83,4 +82,3 @@ async def cleanup_old_messages():
         return {"deleted": resp.count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-```
