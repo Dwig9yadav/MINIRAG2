@@ -50,8 +50,20 @@ async def get_messages(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Only students can view messages")
     try:
         sb = get_supabase()
-        cutoff = datetime.utcnow() - timedelta(seconds=CHAT_MESSAGE_LIFETIME)
+        cutoff = datetime.utcnow() - timedelta(hours=1)
         resp = sb.table("chat_messages").select("*").gte("created_at", cutoff.isoformat()).order("created_at", desc=False).execute()
         return resp.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@router.delete("/messages/cleanup")
+async def cleanup_old_messages():
+    """
+    Delete chat messages older than 1 hour.
+    """
+    try:
+        sb = get_supabase()
+        cutoff = datetime.utcnow() - timedelta(hours=1)
+        resp = sb.table("chat_messages").delete().lt("created_at", cutoff.isoformat()).execute()
+        return {"deleted": resp.count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
