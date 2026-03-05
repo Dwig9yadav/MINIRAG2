@@ -1134,3 +1134,102 @@
   margin-bottom: 1rem;
   text-align: center;
 }
+
+/* --- Chatroom WhatsApp Style --- */
+.chatroom-box {
+  display: flex;
+  flex-direction: column;
+  height: 70vh;
+  background: #181c2f;
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.12);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+.chat-bubble {
+  max-width: 60%;
+  margin-bottom: 1.2rem;
+  padding: 0.8rem 1.2rem;
+  border-radius: 18px;
+  background: #232946;
+  color: #fff;
+  position: relative;
+  word-break: break-word;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+
+.chat-bubble.own {
+  background: #00bfae;
+  color: #fff;
+  margin-left: auto;
+  text-align: right;
+}
+
+.chat-bubble.other {
+  background: #232946;
+  color: #fff;
+  margin-right: auto;
+  text-align: left;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95em;
+  margin-bottom: 0.3em;
+}
+
+.chat-sender {
+  font-weight: bold;
+  color: #ffd700;
+}
+
+.chat-time {
+  font-size: 0.85em;
+  color: #b0b0b0;
+  margin-left: 0.5em;
+}
+
+.chat-text {
+  font-size: 1.1em;
+  margin-top: 0.2em;
+}
+
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #232946;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 18px;
+  border: none;
+  font-size: 1.1em;
+  background: #232946;
+  color: #fff;
+  margin-right: 0.7rem;
+}
+
+.send-chat-btn {
+  background: #00bfae;
+  color: #fff;
+  border: none;
+  border-radius: 18px;
+  padding: 0.7rem 1.5rem;
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.send-chat-btn:hover {
+  background: #009e8e;
+}

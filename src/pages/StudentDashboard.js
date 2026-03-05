@@ -568,10 +568,15 @@ const StudentDashboard = () => {
                     <div className="no-data">No messages yet. Start the conversation!</div>
                   ) : (
                     chatMessages.map(msg => (
-                      <div key={msg.id} className="chat-message">
-                        <span className="chat-sender">{msg.sender_name}</span>
-                        <span className="chat-text">{msg.message}</span>
-                        <span className="chat-time">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                      <div
+                        key={msg.id}
+                        className={`chat-bubble ${msg.sender_id === currentUser.id ? 'own' : 'other'}`}
+                      >
+                        <div className="chat-header">
+                          <span className="chat-sender">{msg.sender_name}</span>
+                          <span className="chat-time">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="chat-text">{msg.message}</div>
                       </div>
                     ))
                   )}
