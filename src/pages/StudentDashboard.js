@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
 import { authAPI, ragAPI, usersAPI, studentFeedbackAPI } from '../services/api';
@@ -112,6 +112,43 @@ const StudentDashboard = () => {
     navigate('/');
   };
 
+  const fetchChatMessages = async () => {
+    try {
+      const res = await fetch('/api/chat/messages', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('edurag_token')}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(data);
+        setTimeout(() => fetchChatMessages(), 5000); // auto-refresh every 5s
+      }
+    } catch (err) {
+      // ignore errors for polling
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    try {
+      const res = await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('edurag_token')}`
+        },
+        body: JSON.stringify({ message: chatInput })
+      });
+      if (res.ok) {
+        setChatInput("");
+        fetchChatMessages();
+      }
+    } catch (err) {}
+  };
+
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef(null);
+
   if (loading) {
     return (
       <div className="dashboard loading-screen">
@@ -162,6 +199,14 @@ const StudentDashboard = () => {
           >
             <span className="nav-icon">📊</span>
             <span>Analysis</span>
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === 'chatroom' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chatroom')}
+          >
+            <span className="nav-icon">💬</span>
+            <span>Chatroom</span>
           </button>
         </nav>
 
@@ -508,6 +553,40 @@ const StudentDashboard = () => {
                 <div className="insight-card">
                   <span>📝</span>
                   <p>Share anonymous feedback with your teachers anytime</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Chatroom Tab */}
+          {activeTab === 'chatroom' && (
+            <section className="tab-content chatroom-section">
+              <h2>Student Chatroom</h2>
+              <div className="chatroom-box">
+                <div className="chat-messages">
+                  {chatMessages.length === 0 ? (
+                    <div className="no-data">No messages yet. Start the conversation!</div>
+                  ) : (
+                    chatMessages.map(msg => (
+                      <div key={msg.id} className="chat-message">
+                        <span className="chat-sender">{msg.sender_name}</span>
+                        <span className="chat-text">{msg.message}</span>
+                        <span className="chat-time">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatEndRef}></div>
+                </div>
+                <div className="chat-input-row">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    placeholder="Type your message..."
+                    className="chat-input"
+                    onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                  />
+                  <button className="send-chat-btn" onClick={sendChatMessage}>Send</button>
                 </div>
               </div>
             </section>
