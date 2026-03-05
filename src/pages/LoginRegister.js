@@ -20,8 +20,8 @@ const LoginRegister = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Institution ID: only allow numbers
     if (name === 'institutionId') {
+      // Only allow numbers
       if (!/^\d*$/.test(value)) {
         setError('Institution ID must be numeric');
         return;
@@ -29,7 +29,7 @@ const LoginRegister = () => {
     }
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'institutionId' ? value.replace(/\D/g, '') : value
     }));
     setError('');
   };
@@ -152,7 +152,7 @@ const LoginRegister = () => {
             <div className="form-group">
               <label htmlFor="institutionId">Institution ID</label>
               <input
-                type="text"
+                type="number"
                 id="institutionId"
                 name="institutionId"
                 placeholder="Enter your institution ID"

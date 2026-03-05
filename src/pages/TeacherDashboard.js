@@ -322,8 +322,17 @@ const TeacherDashboard = () => {
             <div className="profile-modal-buttons">
               <button 
                 className="save-profile-btn"
-                onClick={() => {
-                  setUserName(editName);
+                onClick={async () => {
+                  try {
+                    await usersAPI.update(currentUser.id, {
+                      name: editName,
+                      avatar: selectedAvatar
+                    });
+                    setUserName(editName);
+                    setCurrentUser({ ...currentUser, name: editName, avatar: selectedAvatar });
+                  } catch (err) {
+                    alert('Failed to update profile');
+                  }
                   setShowProfileModal(false);
                 }}
               >
