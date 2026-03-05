@@ -13,7 +13,7 @@ from pathlib import Path
 load_dotenv()
 
 # Import routers
-from routers import auth, users, feedback, student_feedback, rag, analytics
+from routers import auth, users, feedback, student_feedback, rag, analytics, chat
 
 # Create FastAPI app
 app = FastAPI(
@@ -44,6 +44,7 @@ app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
 app.include_router(student_feedback.router, prefix="/api/student-feedback", tags=["Student Feedback"])
 app.include_router(rag.router, prefix="/api/rag", tags=["RAG Search"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(chat.router, prefix="/api/chat", tags=["Chatroom"])
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_BUILD_DIR = ROOT_DIR / "build"
