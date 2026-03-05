@@ -55,6 +55,23 @@ async def get_messages(current_user: dict = Depends(get_current_user)):
         return resp.data or []
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/messages/{message_id}")
+async def delete_message(message_id: int, current_user: dict = Depends(get_current_user)):
+    """
+    Allow a user to delete their own chat message by ID.
+    """
+    try:
+        sb = get_supabase()
+        # Check if the message belongs to the current user
+        resp = sb.table("chat_messages").select("*").eq("id", message_id).execute()
+        if not resp.data or resp.data[0]["sender_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="You can only delete your own messages.")
+        sb.table("chat_messages").delete().eq("id", message_id).execute()
+        return {"deleted": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/messages/cleanup")
 async def cleanup_old_messages():
     """
