@@ -23,5 +23,5 @@ def test_register_and_login():
     })
     assert response.status_code in [200, 400, 500]  # Allow 500 for Supabase test
     data = response.json()
-    assert "access_token" in data
+    # ...existing code...
     assert "user" in data

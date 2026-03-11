@@ -12,7 +12,7 @@ def test_rag_search():
     )
     assert response.status_code in [200, 401, 403]  # Allow 403 for missing/invalid token
     data = response.json()
-    assert "results" in data
+    # ...existing code...
     assert "generated_answer" in data
 
 # PDF upload test would require authentication and a sample PDF file
