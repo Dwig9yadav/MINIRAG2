@@ -27,6 +27,10 @@ GENERATION_MODEL_FALLBACK = os.getenv("GEMINI_GENERATION_MODEL_FALLBACK", "model
 
 
 def _get_gemini_client():
+    """
+    Initialize and return a Gemini API client using the API key from environment variables.
+    Returns None if the API key is not set or the client cannot be created.
+    """
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         return None
@@ -35,13 +39,12 @@ def _get_gemini_client():
         return genai.Client(api_key=api_key)
     except Exception:
         return None
-    """
-    Initialize and return a Gemini API client using the API key from environment variables.
-    Returns None if the API key is not set or the client cannot be created.
-    """
 
 
 def _safe_mime_type(image_bytes: bytes) -> str:
+    """
+    Detect the MIME type of image bytes (JPEG, PNG, GIF) or return octet-stream as fallback.
+    """
     if image_bytes.startswith(b"\xff\xd8"):
         return "image/jpeg"
     if image_bytes.startswith(b"\x89PNG"):
@@ -49,9 +52,6 @@ def _safe_mime_type(image_bytes: bytes) -> str:
     if image_bytes.startswith(b"GIF8"):
         return "image/gif"
     return "application/octet-stream"
-    """
-    Detect the MIME type of image bytes (JPEG, PNG, GIF) or return octet-stream as fallback.
-    """
 
 
 def _extract_text_and_images_from_pdf(pdf_path: str):
@@ -111,10 +111,10 @@ def _ensure_storage_bucket(sb):
 
 
 def _embed_text(client, text: str):
-        """
-        Generate an embedding vector for the given text using the Gemini client.
-        Returns the embedding vector or None if embedding fails.
-        """
+    """
+    Generate an embedding vector for the given text using the Gemini client.
+    Returns the embedding vector or None if embedding fails.
+    """
     if not client or not text.strip():
         return None
     try:
@@ -132,10 +132,10 @@ def _embed_text(client, text: str):
 
 
 def _try_multimodal_embed(client, image_bytes: bytes, page_text: str):
-        """
-        Generate a multimodal embedding for an image and its associated page text using Gemini.
-        Returns the embedding vector or None if not available.
-        """
+    """
+    Generate a multimodal embedding for an image and its associated page text using Gemini.
+    Returns the embedding vector or None if not available.
+    """
     if not client or not MULTIMODAL_EMBEDDING_MODEL:
         return None
     try:
@@ -164,10 +164,10 @@ def _try_multimodal_embed(client, image_bytes: bytes, page_text: str):
 
 
 def _caption_image_with_gemini(client, image_bytes: bytes):
-        """
-        Generate a factual caption for an image using Gemini models.
-        Returns the caption string or an empty string if generation fails.
-        """
+    """
+    Generate a factual caption for an image using Gemini models.
+    Returns the caption string or an empty string if generation fails.
+    """
     if not client:
         return ""
     mime_type = _safe_mime_type(image_bytes)
@@ -203,10 +203,10 @@ def _caption_image_with_gemini(client, image_bytes: bytes):
 
 
 def _chunk_text(raw_text: str, chunk_size: int = 900, overlap: int = 120):
-        """
-        Split raw text into overlapping chunks for embedding and retrieval.
-        Returns a list of text chunks.
-        """
+    """
+    Split raw text into overlapping chunks for embedding and retrieval.
+    Returns a list of text chunks.
+    """
     normalized = " ".join(raw_text.split())
     if not normalized:
         return []
@@ -226,10 +226,10 @@ def _chunk_text(raw_text: str, chunk_size: int = 900, overlap: int = 120):
 
 
 def _cosine_similarity(vector_a, vector_b):
-        """
-        Compute the cosine similarity between two vectors.
-        Returns a float between 0.0 and 1.0.
-        """
+    """
+    Compute the cosine similarity between two vectors.
+    Returns a float between 0.0 and 1.0.
+    """
     if not vector_a or not vector_b or len(vector_a) != len(vector_b):
         return 0.0
 
@@ -242,10 +242,10 @@ def _cosine_similarity(vector_a, vector_b):
 
 
 def _generate_rag_answer(client, user_query: str, retrieved_results: list):
-        """
-        Generate an answer to the user query using retrieved context and Gemini models.
-        Returns the generated answer as a string.
-        """
+    """
+    Generate an answer to the user query using retrieved context and Gemini models.
+    Returns the generated answer as a string.
+    """
     if not client or not retrieved_results:
         return "Could not generate an AI answer. Please check that your Gemini API key is configured."
 
