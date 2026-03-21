@@ -1,9 +1,58 @@
-"""
-EduRag Backend - FastAPI with Supabase
 
-This is the main entry point for the EduRag backend API, which provides endpoints for authentication, user management, feedback, RAG search, analytics, and chat. All data is stored in Supabase.
 """
-from fastapi import FastAPI, HTTPException
+MINI-RAG Backend Main Entry Point
+
+This file launches the FastAPI application for the MINI-RAG project.
+It provides API endpoints for:
+    - Authentication
+    - User management
+    - Feedback
+    - RAG (Retrieval-Augmented Generation) search
+    - Analytics
+    - Chat
+
+All persistent data is stored in Supabase PostgreSQL.
+Routers are imported from the backend/routers/ directory.
+"""
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
+from collections import defaultdict, deque
+
+# --- In-memory rate limiting middleware (per-IP, 60 req/min) ---
+RATE_LIMIT = 60  # requests
+RATE_PERIOD = 60  # seconds
+_ip_buckets = defaultdict(lambda: deque())
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        bucket = _ip_buckets[ip]
+        # Remove old timestamps
+        while bucket and now - bucket[0] > RATE_PERIOD:
+            bucket.popleft()
+        if len(bucket) >= RATE_LIMIT:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Try again later."},
+            )
+        bucket.append(now)
+        return await call_next(request)
+
+# --- Security headers middleware ---
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        return response
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -14,15 +63,34 @@ from pathlib import Path
 # Load environment variables
 load_dotenv()
 
-# Import routers
-from .routers import auth, users, feedback, student_feedback, rag, analytics, chat
+# Import routers (absolute imports for Vercel)
+from routers import auth, users, feedback, student_feedback, rag, analytics, chat
 
 # Create FastAPI app
+
 app = FastAPI(
     title="EduRag API",
     description="Backend API for EduRag - Educational RAG Platform",
     version="1.0.0"
 )
+
+# Global error handler for HTTPException and generic Exception
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail or "HTTP error occurred"},
+    )
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS configuration - Allow Vercel frontend + dev origins + Codespaces
 app.add_middleware(

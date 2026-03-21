@@ -1,3 +1,8 @@
+/**
+ * AdminDashboard.js - Dashboard page for admins in MINI-RAG frontend.
+ *
+ * Handles user management, analytics, feedback, and PDF management for admins.
+ */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AnimatedBackground from '../components/AnimatedBackground';
@@ -209,6 +214,21 @@ const AdminDashboard = () => {
       alert('Delete failed: ' + error.message);
     }
   };
+
+  // Refetch users when switching to User Management tab
+  useEffect(() => {
+    if (activeTab === 'users') {
+      setLoading(true);
+      usersAPI.getAll().then(data => {
+        setUsers(data || []);
+        setLoading(false);
+      }).catch(err => {
+        setUsers([]);
+        setLoading(false);
+        console.error('Error reloading users:', err);
+      });
+    }
+  }, [activeTab]);
 
   if (loading) {
     return (
