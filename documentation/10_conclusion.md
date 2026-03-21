@@ -1,11 +1,5 @@
 # 10 — Conclusion
 
-MINIRAG2 is a focused effort to bring RAG-powered, explainable search to teams and learners. The repository contains a React frontend, a Python backend, and integration points for embeddings and LLMs.
+MINIRAG2 delivers a robust, explainable knowledge retrieval platform for organizations and educational use-cases. By combining semantic search, RAG, and feedback-driven improvement, it ensures users get accurate answers with clear provenance. The modular architecture, scalable deployment options, and extensible roadmap make it suitable for evolving needs.
 
-Next steps for maintainers
-- Keep environment variables synchronized between local development and Vercel.
-- Add more comprehensive API tests and CI checks.
-- Expand documentation for retraining and data curation workflows.
-
-Contact
-- For questions about architecture or deployment, open an issue or contact the maintainers listed in `README.md`.
+For further details, see the documentation files above or reach out for implementation support.

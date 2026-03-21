@@ -1,4 +1,4 @@
-<div align="center">
+
 
 # 🎓 EduRag - AI-Powered Educational RAG Platform
 
