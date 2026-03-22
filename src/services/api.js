@@ -169,6 +169,16 @@ export const authAPI = {
         });
     },
 
+    resetPassword: async (token, newPassword) => {
+        return apiFetch('/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify({
+                token,
+                new_password: newPassword,
+            }),
+        });
+    },
+
     changePassword: async (currentPassword, newPassword) => {
         return apiFetch('/auth/change-password', {
             method: 'POST',

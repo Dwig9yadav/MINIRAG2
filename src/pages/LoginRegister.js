@@ -3,7 +3,7 @@
  *
  * Handles user login and registration forms, validation, and API calls.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import AnimatedBackground from '../components/AnimatedBackground';
@@ -16,7 +16,12 @@ const LoginRegister = () => {
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetLink, setResetLink] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
@@ -49,6 +54,18 @@ const LoginRegister = () => {
     }
     return raw || 'Registration failed. Please check your details and retry.';
   };
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('reset_token');
+    if (token) {
+      setIsLogin(true);
+      setShowForgotPassword(false);
+      setShowResetForm(true);
+      setResetToken(token);
+      setSuccess('Reset token detected. Enter your new password below.');
+      setError('');
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -135,7 +152,12 @@ const LoginRegister = () => {
   const toggleMode = () => {
     setIsLogin(!isLogin);
     setShowForgotPassword(false);
+    setShowResetForm(false);
     setResetEmail('');
+    setResetToken('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
+    setResetLink('');
     setError('');
     setSuccess('');
     setFormData({
@@ -161,13 +183,65 @@ const LoginRegister = () => {
     try {
       const response = await authAPI.forgotPassword(resetEmail.trim());
       setSuccess(response?.message || 'Password reset email sent.');
-      toast.success('Reset link sent to your email.');
-      setShowForgotPassword(false);
+      if (response?.reset_url) {
+        setResetLink(response.reset_url);
+        setShowResetForm(true);
+        setShowForgotPassword(false);
+        try {
+          const token = new URL(response.reset_url).searchParams.get('reset_token') || '';
+          setResetToken(token);
+        } catch {
+          setResetToken('');
+        }
+        toast.success('Email service unavailable. Opened direct reset flow.');
+      } else {
+        toast.success('Reset link sent to your email.');
+        setShowForgotPassword(false);
+      }
       setResetEmail('');
     } catch (err) {
       const errorMsg = typeof err.message === 'string' ? err.message : 'Unable to send reset email';
       setError(errorMsg);
       toast.error('Failed to send reset email.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleDirectResetPassword = async (e) => {
+    e.preventDefault();
+    if (!resetToken.trim()) {
+      setError('Reset token missing. Request a new reset link.');
+      return;
+    }
+    if (resetNewPassword.length < 6) {
+      setError('New password must be at least 6 characters.');
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      setError('New password and confirm password do not match.');
+      return;
+    }
+
+    setResetLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await authAPI.resetPassword(resetToken.trim(), resetNewPassword);
+      setSuccess(response?.message || 'Password reset successful.');
+      toast.success('Password reset successful. Please login.');
+      setShowResetForm(false);
+      setResetToken('');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
+      setResetLink('');
+      if (window.location.search.includes('reset_token=')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (err) {
+      const errorMsg = typeof err.message === 'string' ? err.message : 'Unable to reset password';
+      setError(errorMsg);
+      toast.error('Password reset failed.');
     } finally {
       setResetLoading(false);
     }
@@ -307,6 +381,7 @@ const LoginRegister = () => {
                 className="toggle-link"
                 onClick={() => {
                   setShowForgotPassword((prev) => !prev);
+                  setShowResetForm(false);
                   setError('');
                   setSuccess('');
                 }}
@@ -334,6 +409,58 @@ const LoginRegister = () => {
               <button type="submit" className="submit-btn" disabled={resetLoading}>
                 {resetLoading ? 'Sending...' : 'Send Reset Link'}
               </button>
+            </form>
+          )}
+
+          {isLogin && showResetForm && (
+            <form className="auth-form" onSubmit={handleDirectResetPassword}>
+              <div className="form-group">
+                <label htmlFor="resetToken">Reset Token</label>
+                <input
+                  type="text"
+                  id="resetToken"
+                  name="resetToken"
+                  placeholder="Paste reset token"
+                  value={resetToken}
+                  onChange={(e) => setResetToken(e.target.value)}
+                  required
+                  disabled={resetLoading}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="resetNewPassword">New Password</label>
+                <input
+                  type="password"
+                  id="resetNewPassword"
+                  name="resetNewPassword"
+                  placeholder="Enter new password"
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  required
+                  disabled={resetLoading}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="resetConfirmPassword">Confirm New Password</label>
+                <input
+                  type="password"
+                  id="resetConfirmPassword"
+                  name="resetConfirmPassword"
+                  placeholder="Re-enter new password"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  required
+                  disabled={resetLoading}
+                />
+              </div>
+              <button type="submit" className="submit-btn" disabled={resetLoading}>
+                {resetLoading ? 'Resetting...' : 'Reset Password'}
+              </button>
+              {resetLink && (
+                <p style={{ marginTop: '0.75rem' }}>
+                  Direct reset link: <a href={resetLink}>{resetLink}</a>
+                </p>
+              )}
             </form>
           )}
 
